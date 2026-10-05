@@ -118,7 +118,10 @@ const VB_COMMENT_CHARS = new Set(["'", "‘", "’"]);
 // The VB lexer also takes typographic double quotes as string delimiters.
 const VB_QUOTE_CHARS = new Set(['"', "“", "”"]);
 // Shared rules that key on a comment marker and so must not see markers inside strings.
-const COMMENT_MARKER_RULES = new Set(["placeholder-comment", "narrating-comment", "apologetic-comment", "deferral-comment", "banner-comment", "suppression-comment"]);
+const COMMENT_MARKER_RULES = new Set(["placeholder-comment", "narrating-comment", "apologetic-comment", "deferral-comment", "banner-comment"]);
+// Shared rules whose tokens cannot occur in VB (`@ts-ignore`, `eslint-disable`, ...), so a
+// hit can only be string text; the VB table carries the VB form (vb-warning-suppression).
+const VB_REPLACED_RULES = new Set(["suppression-comment"]);
 
 // Quote parity of a line's code part, read as if no string were open: a trailing comment
 // may hold a lone `"` (`Sub F() ' "x`) and must not block string-state recovery.
@@ -136,7 +139,7 @@ function vbCodeHead(text) {
 // Only openers that do not read as English prose ("For details...", "Return to menu" are
 // common string text): directives, `End <block>`, declaration headers, Imports/Namespace,
 // and Try/Catch/Finally in their statement shapes.
-const VB_STATEMENT_START = /^\s*(?:#|End[ \t]+(?:Sub|Function|Property|Class|Module|Namespace|Try|If|Select|Using|With|While|Structure|Enum|Interface|Get|Set|SyncLock|Operator|Event|AddHandler|RemoveHandler|RaiseEvent)\b|(?:(?:Private|Public|Protected|Friend|Shared|Overrides|Overridable|NotOverridable|MustOverride|MustInherit|NotInheritable|Partial|Async|Iterator|Shadows|Overloads|ReadOnly|WriteOnly|Default|WithEvents|Const)[ \t]+)*(?:Sub|Function|Property|Class|Module|Structure|Enum|Interface|Operator|Event|Delegate[ \t]+(?:Sub|Function))[ \t]+[\w+\-*\/<>=&]+[ \t]*(?:\(|$|\bAs\b|:)|(?:Private|Public|Protected|Friend)[ \t]+(?:(?:Shared|ReadOnly|WithEvents|Const)[ \t]+)*\w+[ \t]+As\b|Imports[ \t]+[\w.]+(?:[ \t]*=[ \t]*[\w.]+)?[ \t]*$|Namespace[ \t]+[\w.]+[ \t]*$|Try[ \t]*$|Finally[ \t]*$|Catch(?:[ \t]+\w+[ \t]+As\b|[ \t]*$))/i;
+const VB_STATEMENT_START = /^\s*(?:#|End[ \t]+(?:Sub|Function|Property|Class|Module|Namespace|Try|If|Select|Using|With|While|Structure|Enum|Interface|Get|Set|SyncLock|Operator|Event|AddHandler|RemoveHandler|RaiseEvent)[ \t]*$|(?:(?:Private|Public|Protected|Friend|Shared|Overrides|Overridable|NotOverridable|MustOverride|MustInherit|NotInheritable|Partial|Async|Iterator|Shadows|Overloads|ReadOnly|WriteOnly|Default|WithEvents|Const)[ \t]+)*(?:Sub|Function|Property|Class|Module|Structure|Enum|Interface|Operator|Event|Delegate[ \t]+(?:Sub|Function))[ \t]+[\w+\-*\/<>=&]+[ \t]*(?:\(|$|\bAs\b|:)|(?:Private|Public|Protected|Friend)[ \t]+(?:(?:Shared|ReadOnly|WithEvents|Const)[ \t]+)*\w+[ \t]+As\b|Imports[ \t]+[\w.]+(?:[ \t]*=[ \t]*[\w.]+)?[ \t]*$|Namespace[ \t]+[\w.]+[ \t]*$|Try[ \t]*$|Finally[ \t]*$|Catch(?:[ \t]+\w+[ \t]+As\b|[ \t]*$))/i;
 function splitVbLines(content) {
   let inString = false;
   return content.split("\n").map((raw) => {
@@ -472,6 +475,7 @@ function collectSuppressedViolations({ content, lines, isProse, isCode, isVb, is
   if (isCode) {
     for (const pat of CODE_PATTERNS) {
       if (isTestFile && pat.skipInTests) continue;
+      if (isVb && VB_REPLACED_RULES.has(pat.name)) continue;
       if (!fileGuardOk(pat, content)) continue;
       const { count, line } = countLinePatternOnEscapedLines(lines, pat);
       if (meetsThreshold(pat, count)) {
@@ -835,6 +839,7 @@ export function scanContent(content, filePath, opts = {}) {
   if (isCode) {
     for (const pat of CODE_PATTERNS) {
       if (isTestFile && pat.skipInTests) continue;
+      if (isVb && VB_REPLACED_RULES.has(pat.name)) continue;
       if (!fileGuardOk(pat, content)) continue;
       const patLines = isVb && !COMMENT_MARKER_RULES.has(pat.name) ? vbRawLines : lines;
       const { count, line } = countLinePattern(patLines, pat);
