@@ -128,7 +128,7 @@ test("vb-compare-of-comparison: a comparison compared to True/False again is a f
   for (const s of ["If (count > 0) = True Then X()", "If (a <> b) = False Then X()", "ok = (x IsNot Nothing) = True", "If x = True = True Then X()"]) {
     assert.ok(fires("vb-compare-of-comparison", crlf(s)), s);
   }
-  for (const s of ["If count > 0 Then X()", "If Directory.Exists(p) = False Then X()", "If Check(a, b) = True Then X()"]) {
+  for (const s of ["If count > 0 Then X()", "If Directory.Exists(p) = False Then X()", "If Check(a, b) = True Then X()", "If Validate(count > 0) = True Then X()"]) {
     assert.ok(!fires("vb-compare-of-comparison", crlf(s)), s);
   }
 });
@@ -137,6 +137,10 @@ test("vb-bool-ternary: If/IIf returning True/False is a finding, a real ternary 
   assert.ok(fires("vb-bool-ternary", crlf("ok = If(count > 0, True, False)")));
   assert.ok(fires("vb-bool-ternary", crlf("ok = IIf(IsValid(x), False, True)")));
   assert.ok(!fires("vb-bool-ternary", crlf("label = If(ok, \"Yes\", \"No\")", "If(ok) Then X()")));
+  for (const s of ["If (ready) Then SetFlags(x, True, False)", "x = If(a, Foo(b, True, False), c)", "ok = If(chk.IsChecked, True, False)", "ok = If(dlg.ShowDialog(), True, False)"]) {
+    assert.ok(!fires("vb-bool-ternary", crlf(s)), s);
+  }
+  assert.ok(fires("vb-bool-ternary", crlf("chk.IsChecked = If(x = 1, True, False)")));
 });
 
 test("vb-bool-assign-branch: If/Else assigning True/False to one variable is a finding", () => {
@@ -153,10 +157,10 @@ test("vb-double-negation: Not Not / Not (x = False) are findings, a single Not i
 });
 
 test("vb-narrating-comment: VB-shaped narration is a finding, a why-comment and Korean are not", () => {
-  for (const s of ["' Constructor", "' Check if the file exists", "' Re-throw the exception", "''' Processes the data.", "' Properties"]) {
+  for (const s of ["' Check if the file exists", "' Re-throw the exception", "''' Processes the data."]) {
     assert.ok(fires("vb-narrating-comment", crlf(s, "X()")), s);
   }
-  for (const s of ["' Constructor runs before the PLC is ready, so defer Connect", "' 생성자", "''' Processes the data from both PLC ports in arrival order.", "''' Checks whether the heat exchanger is included in the HSystem","Dim s = \"' Constructor\""]) {
+  for (const s of ["' Constructor", "' Properties", "' Constructor runs before the PLC is ready, so defer Connect","' 생성자", "''' Processes the data from both PLC ports in arrival order.", "''' Checks whether the heat exchanger is included in the HSystem","Dim s = \"' Constructor\""]) {
     assert.ok(!fires("vb-narrating-comment", crlf(s, "X()")), s);
   }
 });
