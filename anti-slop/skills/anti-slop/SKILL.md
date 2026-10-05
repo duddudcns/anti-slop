@@ -1,6 +1,6 @@
 ---
 name: anti-slop
-version: 2.4.1-vb.4
+version: 2.4.1-vb.5
 description: Catches AI-default tells and agentic shortcomings in user-facing output: banned vocabulary and structural cliches in prose, AI-default design and UI code, accessibility failures, and security holes or regressions in the code under review. Use when writing or revising user-facing prose (UI copy and microcopy, notifications, marketing and store listings, release notes, public docs), when designing or building UI, and when asked to review output, a file, a diff, or a PR for AI patterns ("/slop-check", "check this for AI patterns", "does this read as AI-written?"). Context-aware: yields to domain conventions and project requirements.
 ---
 

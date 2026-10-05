@@ -224,17 +224,30 @@ function vbProseOnly(content, hatchedOnly = false) {
 const VB_MAX_LINE = 2000;
 function vbCodeView(content) {
   const split = splitVbLines(content);
-  return content
-    .split("\n")
-    .map((l, i) => {
-      if (ESCAPE_HATCH.test(l)) return "_hatched_";
-      const { bare } = split[i];
-      // A placeholder, not a blank, for the same reason as `_hatched_`: a long statement
-      // inside a Catch must not make the Catch look empty.
-      return bare.length > VB_MAX_LINE ? "_long_" : bare;
-    })
-    .join("\n");
+  const raw = content.split("\n");
+  const out = raw.map((l, i) => (ESCAPE_HATCH.test(l) ? "_hatched_" : split[i].bare.trimEnd()));
+  // Line continuations: a statement split over several lines is joined onto its first
+  // line and the lines it absorbed are left blank, so every rule sees one statement and a
+  // finding still reports the line the statement starts on. Explicit is a trailing ` _`;
+  // implicit (VB 10+) is a line ending in a token that cannot end a statement.
+  // A blank or comment-only next line (bare "") ends the run: that is a compile error after
+  // ` _` anyway, and joining across it would glue two statements together.
+  for (let i = 0; i < out.length; i++) {
+    if (out[i] === "_hatched_") continue;
+    let j = i;
+    while (j + 1 < out.length && out[j + 1].trim() !== "" && out[j + 1] !== "_hatched_" && VB_CONTINUES.test(out[i])) {
+      out[i] = `${out[i].replace(VB_EXPLICIT_CONTINUATION, "")} ${out[j + 1].trim()}`;
+      out[j + 1] = "";
+      j++;
+    }
+    i = j;
+  }
+  // A placeholder, not a blank, for the same reason as `_hatched_`: a long statement
+  // inside a Catch must not make the Catch look empty.
+  return out.map((l) => (l.length > VB_MAX_LINE ? "_long_" : l)).join("\n");
 }
+const VB_EXPLICIT_CONTINUATION = /[ \t]+_[ \t]*$/;
+const VB_CONTINUES = /(?:[ \t]_|,|\(|\{|&|\+|-|\*|\/|=|<>|<|>|:=|\b(?:AndAlso|OrElse|And|Or|Xor|Is|IsNot|Like|Mod))[ \t]*$/i;
 
 // ── Blank any line carrying the escape-hatch marker (preserves line count) ──
 function stripEscapeHatchLines(content) {
