@@ -797,7 +797,8 @@ export function scanContent(content, filePath, opts = {}) {
   if (isVb) {
     const codeView = vbCodeView(content);
     // `scope: "comment"` rules read only the comment text (hatched lines blanked).
-    const commentView = extractComments(content, true);
+    const commentView = extractComments(content, true)
+      .split("\n").map((l) => (l.length > VB_MAX_LINE ? "" : l)).join("\n");
     for (const pat of VB_PATTERNS) {
       if (isTestFile && pat.skipInTests) continue;
       if (!fileGuardOk(pat, content)) continue;

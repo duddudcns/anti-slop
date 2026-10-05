@@ -28,6 +28,20 @@ function formatFindings(report, filePath) {
   return `[anti-slop] ${path.basename(filePath)}: ${kept.length} finding(s). Fix the ones this edit introduced; pre-existing ones can be left.\n${lines.join("\n")}`;
 }
 
+// The scanner reads .anti-slop/config.json (allowedWords, prose scope) from its cwd, so run
+// it from the project root: the nearest folder up from the file holding .anti-slop/ or .git,
+// else the session cwd the hook was given, else the file's own folder.
+function projectRoot(filePath, sessionCwd) {
+  let dir = path.dirname(path.resolve(filePath));
+  for (;;) {
+    if (fs.existsSync(path.join(dir, ".anti-slop")) || fs.existsSync(path.join(dir, ".git"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return sessionCwd && fs.existsSync(sessionCwd) ? sessionCwd : path.dirname(filePath);
+}
+
 function main() {
   let input;
   try { input = JSON.parse(fs.readFileSync(0, "utf8")); } catch { return; }
@@ -35,11 +49,9 @@ function main() {
   if (!filePath || !CODE_EXTS.has(path.extname(filePath).toLowerCase()) || !fs.existsSync(filePath)) return;
   if (!fs.existsSync(SCANNER)) return;
   let out;
-  // cwd = the file's folder: fine while CODE_EXTS has no prose files. If prose is ever
-  // added, run from the project root so .anti-slop/config.json (prose scope) is found.
   try {
     out = execFileSync(process.execPath, [SCANNER, "scan", "--format", "json", "--fail-on", "none", filePath], {
-      encoding: "utf8", timeout: 15000, cwd: path.dirname(filePath),
+      encoding: "utf8", timeout: 15000, cwd: projectRoot(filePath, input.cwd),
     });
   } catch { return; }
   let report;
@@ -54,4 +66,4 @@ if (require.main === module) {
   process.exit(0);
 }
 
-module.exports = { formatFindings, CODE_EXTS };
+module.exports = { formatFindings, projectRoot, CODE_EXTS };
