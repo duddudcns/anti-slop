@@ -8,8 +8,15 @@ All notable changes to the anti-slop plugin. Versions match `.claude-plugin/plug
   `vb-bool-assign-branch`, `vb-double-negation`. A plain `x = False` test stays a Taste note
   (`vb-bool-literal-compare`, demoted in vb.2).
 - `vb-narrating-comment` runs on comment text only (`scope: "comment"`) and covers VB
-  narration the shared rule misses (`' Constructor`, `' Check if the`, `''' Processes the X.`).
-- vb.3: the PostToolUse slop-scan hook ships in `hooks/`.
+  narration the shared rule misses (`' Check if the file exists`, `''' Processes the X.`).
+
+## 2.4.1-vb.3 (fork)
+
+- The PostToolUse slop-scan hook ships in `hooks/` (advisory, Taste notes excluded).
+
+## 2.4.1-vb.2 (fork)
+
+- `vb-bool-literal-compare` is a Taste note: a plain `x = False` test is style, not slop.
 
 ## 2.4.1-vb.1 (fork)
 
