@@ -1,6 +1,6 @@
 {
   "name": "anti-slop",
-  "version": "2.4.1-vb.1",
+  "version": "2.4.1-vb.2",
   "description": "Catches agentic development shortcomings: security holes, accessibility failures, regressions, and generic defaults. Context-aware: yields to domain conventions.",
   "author": {
     "name": "TheMizeGuy",
