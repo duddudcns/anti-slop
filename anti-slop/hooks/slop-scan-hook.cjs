@@ -32,16 +32,21 @@ function formatFindings(report, filePath) {
 // it from the project root: the nearest folder up from the file holding .anti-slop/ or .git,
 // else the session cwd the hook was given, else the file's own folder.
 function projectRoot(filePath, sessionCwd) {
-  let dir = path.dirname(path.resolve(filePath));
-  for (;;) {
-    // .anti-slop/config.json, not the bare folder: ~/.anti-slop/ is the scanner's global
-    // registry (written by --record / dashboard) and must not make the home folder a root.
-    if (fs.existsSync(path.join(dir, ".anti-slop", "config.json")) || fs.existsSync(path.join(dir, ".git"))) return dir;
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
+  const start = path.dirname(path.resolve(filePath));
+  const fallback = sessionCwd && fs.existsSync(sessionCwd) ? sessionCwd : start;
+  // A network path can take seconds per existsSync on a slow host; don't walk it.
+  if (start.startsWith("\\\\")) return fallback;
+  const ancestors = [];
+  for (let dir = start; ; dir = path.dirname(dir)) {
+    ancestors.push(dir);
+    if (path.dirname(dir) === dir) break;
   }
-  return sessionCwd && fs.existsSync(sessionCwd) ? sessionCwd : path.dirname(filePath);
+  // A config anywhere up the tree wins over a nearer nested repo (CI Pro0\.git sits under
+  // C:\Dropbox). `.anti-slop/config.json`, not the bare folder: ~/.anti-slop/ is the
+  // scanner's global registry and must not make the home folder a root.
+  return ancestors.find((d) => fs.existsSync(path.join(d, ".anti-slop", "config.json")))
+    || ancestors.find((d) => fs.existsSync(path.join(d, ".git")))
+    || fallback;
 }
 
 function main() {
