@@ -40,6 +40,15 @@ test("vb-empty-catch: counts each empty Catch in the file", () => {
   assert.equal(find("vb-empty-catch", src).count, 2);
 });
 
+test("vb-empty-catch: a one-line Catch body is NOT empty; an empty Catch before another Catch is", () => {
+  assert.ok(!fires("vb-empty-catch", crlf("Try", "X()", "Catch ex As Exception : Log(ex)", "End Try")));
+  assert.ok(fires("vb-empty-catch", crlf("Try", "X()", "Catch ex As IOException", "Catch ex As Exception", "Log(ex)", "End Try")));
+});
+
+test("the escape hatch on a Catch body line does not create an empty-Catch finding", () => {
+  assert.ok(!fires("vb-empty-catch", crlf("Try", "X()", "Catch ex As Exception", "  Log(ex) ' anti-slop-allow", "End Try")));
+});
+
 // ── vb-bool-literal-compare ──────────────────────────────────────────────────
 
 test("vb-bool-literal-compare: a condition compared to True/False is a finding", () => {
@@ -55,6 +64,10 @@ test("vb-bool-literal-compare: assignments, plain conditions and comments are NO
   // WPF ShowDialog() is Boolean?; comparing it to True is the idiom, not slop.
   assert.ok(!fires("vb-bool-literal-compare", crlf("If dlg.ShowDialog(Me) = True Then Open()")));
   assert.ok(!fires("vb-bool-literal-compare", crlf("If dlg.ShowDialog() <> True OrElse busy Then Exit Sub")));
+  assert.ok(!fires("vb-bool-literal-compare", crlf("If dlg.ShowDialog(GetOwner()) = True Then Open()")));
+  // A named argument (`:=`) and a comparison inside a string are not conditions.
+  assert.ok(!fires("vb-bool-literal-compare", crlf("If Check(strict:=True) Then X()")));
+  assert.ok(!fires("vb-bool-literal-compare", crlf("If s = \"a = True\" Then X()")));
   // An assignment in a single-line If body is not the condition.
   assert.ok(!fires("vb-bool-literal-compare", crlf("If ready Then panel.Visible = True")));
   assert.ok(!fires("vb-bool-literal-compare", crlf("If Not x Then list.Add(New Item With {.On = False})")));
@@ -110,6 +123,24 @@ test("banned words are found in VB ' and REM comments", () => {
   for (const w of ["delve", "tapestry", "synergy"]) {
     assert.ok(vs.some((v) => v.word === w), `${w} missing: ${JSON.stringify(vs.map((v) => v.word || v.name))}`);
   }
+});
+
+test("a multi-line string keeps its apostrophe out of the comments", () => {
+  const vs = scan(crlf("Dim q = \"line1", "it's delve here\"", "Dim x = 1"));
+  assert.ok(!vs.some((v) => v.word === "delve"), JSON.stringify(vs));
+});
+
+test("an inline `: REM` is a comment", () => {
+  const vs = scan(crlf("X() : REM delve into the tapestry"));
+  assert.ok(vs.some((v) => v.word === "delve"), JSON.stringify(vs));
+});
+
+test("a very long generated line does not stall the VB rules", () => {
+  const long = "If a = b AndAlso c ".repeat(20000);
+  const t0 = Date.now();
+  scan(crlf(long, "If done = True Then X()"));
+  assert.ok(Date.now() - t0 < 2000, `took ${Date.now() - t0}ms`);
+  assert.ok(fires("vb-bool-literal-compare", crlf(long, "If done = True Then X()")));
 });
 
 test("#Region and date literals are not read as comments", () => {
