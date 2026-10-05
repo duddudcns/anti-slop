@@ -2,6 +2,15 @@
 
 All notable changes to the anti-slop plugin. Versions match `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `anti-slop/.claude-plugin/plugin.json`, the SKILL.md frontmatter, and `anti-slop/scripts/package.json` — all five are bumped together. (It was five, then four when 2.0.0 removed the MCP Server constructor, then five again when 2.2.1 brought the scanner's package.json under the same gate.)
 
+## 2.4.1-vb.4 (fork)
+
+- Boolean busywork rules (Quality): `vb-compare-of-comparison`, `vb-bool-ternary`,
+  `vb-bool-assign-branch`, `vb-double-negation`. A plain `x = False` test stays a Taste note
+  (`vb-bool-literal-compare`, demoted in vb.2).
+- `vb-narrating-comment` runs on comment text only (`scope: "comment"`) and covers VB
+  narration the shared rule misses (`' Constructor`, `' Check if the`, `''' Processes the X.`).
+- vb.3: the PostToolUse slop-scan hook ships in `hooks/`.
+
 ## 2.4.1-vb.1 (fork)
 
 - VB.NET (`.vb`) is a code surface. A string-aware splitter separates `'`/REM comments from
