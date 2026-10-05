@@ -110,27 +110,37 @@ function extractComments(content, isVb = false) {
 // directives and `#1/1/2020#` is a date literal. A VB string escapes `"` by doubling it,
 // which the toggle handles for free, and since VB 14 a string may span lines, so the
 // string state carries from one line to the next. `bare` is the code with string contents
-// removed (quotes kept): the VB rules must not read `"a = True"` as a comparison.
+// removed (quotes kept): the VB rules must not read `"a = True"` as a comparison. `code`
+// keeps string contents (hardcoded-secret needs them) but masks the comment markers
+// `/ # * -` inside strings to `_`, so `"// TODO: implement"` is not a placeholder comment.
 const VB_COMMENT_CHARS = new Set(["'", "‘", "’"]);
+const VB_STATEMENT_START = /^\s*(?:#|(?:End|Sub|Function|Property|Try|Catch|Finally|Dim|If|ElseIf|Else|Return|For|Next|While|Do|Loop|Select|Case|Using|With|Private|Public|Protected|Friend|Shared|Overrides|Class|Module|Namespace|Imports)\b)/i;
 function splitVbLines(content) {
   let inString = false;
   return content.split("\n").map((raw) => {
     const text = raw.replace(/\r$/, "");
+    // Recovery: one stray `"` (XML literal text, an unterminated `#Region "x`) would
+    // otherwise hide every later comment and finding. A line that opens with a statement
+    // keyword cannot be the inside of a string, and directives never continue a string.
+    if (inString && VB_STATEMENT_START.test(text)) inString = false;
     let bare = "";
+    let code = "";
     // True at line start and after `:` until the next non-blank character.
     let atStatementStart = !inString;
     for (let i = 0; i < text.length; i++) {
       const ch = text[i];
-      if (ch === '"') { inString = !inString; bare += ch; atStatementStart = false; continue; }
-      if (inString) continue;
+      if (ch === '"') { inString = !inString; bare += ch; code += ch; atStatementStart = false; continue; }
+      if (inString) { code += "/#*-".includes(ch) ? "_" : ch; continue; }
       if (VB_COMMENT_CHARS.has(ch) || (atStatementStart && /^REM\b/i.test(text.slice(i, i + 4)))) {
-        return { code: text.slice(0, i), bare, comment: text.slice(i) };
+        return { code, bare, comment: text.slice(i) };
       }
+      code += ch;
       if (ch === ":") atStatementStart = true;
       else if (ch !== " " && ch !== "\t") atStatementStart = false;
       bare += ch;
     }
-    return { code: text, bare, comment: "" };
+    if (/^\s*#/.test(text)) inString = false;
+    return { code, bare, comment: "" };
   });
 }
 
@@ -151,7 +161,7 @@ function vbCommentNormalizedLines(content) {
 // Comments and string contents are removed. An escape-hatched line becomes a placeholder
 // statement rather than a blank: blanking it would empty a Catch body and turn the hatch
 // into a new finding on another line. A line longer than VB_MAX_LINE (generated or
-// minified code) is blanked so the lazy scans in VB_PATTERNS stay linear in practice.
+// minified code) becomes `_long_` so the lazy scans in VB_PATTERNS stay linear in practice.
 const VB_MAX_LINE = 2000;
 function vbCodeView(content) {
   const split = splitVbLines(content);
@@ -160,7 +170,9 @@ function vbCodeView(content) {
     .map((l, i) => {
       if (ESCAPE_HATCH.test(l)) return "_hatched_";
       const { bare } = split[i];
-      return bare.length > VB_MAX_LINE ? "" : bare;
+      // A placeholder, not a blank, for the same reason as `_hatched_`: a long statement
+      // inside a Catch must not make the Catch look empty.
+      return bare.length > VB_MAX_LINE ? "_long_" : bare;
     })
     .join("\n");
 }
@@ -576,7 +588,10 @@ export function scanContent(content, filePath, opts = {}) {
   const isVb = VB_EXTENSIONS.has(ext);
   // Test/fixture files carry fake creds, example.com, and innerHTML scaffolding -- skip the
   // security / dummy-data patterns there so real findings are not drowned in test noise.
-  const isTestFile = /\.(test|spec)\.[mc]?[jt]sx?$|(^|\/)(__tests__|__mocks__|fixtures|e2e)\/|\.stories\.[mc]?[jt]sx?$/i.test(filePath);
+  // VB has no `.test.` suffix convention: tests live in `*.Tests` projects or `*Tests.vb`.
+  // Case-sensitive on purpose, so `Contest.vb` is not a test file.
+  const isTestFile = /\.(test|spec)\.[mc]?[jt]sx?$|(^|\/)(__tests__|__mocks__|fixtures|e2e)\/|\.stories\.[mc]?[jt]sx?$/i.test(filePath)
+    || (isVb && /(^|[\\/])[^\\/]*\.Tests?[\\/]|Tests?\.vb$/.test(filePath));
   const config = loadProjectConfig();
   const allowedWords = new Set((config.allowedWords || []).map(w => w.toLowerCase()));
   const contentLower = content.toLowerCase();

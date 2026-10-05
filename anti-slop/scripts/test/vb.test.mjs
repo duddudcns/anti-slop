@@ -130,6 +130,45 @@ test("a multi-line string keeps its apostrophe out of the comments", () => {
   assert.ok(!vs.some((v) => v.word === "delve"), JSON.stringify(vs));
 });
 
+test("a stray quote does not hide the rest of the file", () => {
+  const src = crlf("Dim x = <a>d\"</a>", "' delve tapestry", "Try", "X()", "Catch", "End Try", "If a = True Then X()");
+  assert.ok(fires("vb-empty-catch", src));
+  assert.ok(fires("vb-bool-literal-compare", src));
+  assert.ok(fires("vb-empty-catch", crlf("#Region \"Helpers", "Sub F()", "Try", "X()", "Catch", "End Try", "End Sub")));
+});
+
+test("a long statement inside a Catch does not make the Catch empty or rethrow-only", () => {
+  const long = "Log(ex) : ".repeat(300);
+  assert.ok(!fires("vb-empty-catch", crlf("Try", "X()", "Catch ex As Exception", long, "End Try")));
+  assert.ok(!fires("vb-rethrow-only-catch", crlf("Try", "X()", "Catch ex As Exception", long, "Throw", "End Try")));
+});
+
+test("vb-bool-literal-compare: IsChecked and `:`-separated bodies are NOT findings", () => {
+  assert.ok(!fires("vb-bool-literal-compare", crlf("If chkAuto.IsChecked = True Then X()")));
+  assert.ok(!fires("vb-bool-literal-compare", crlf("While Running : done = True : End While")));
+  assert.ok(!fires("vb-bool-literal-compare", crlf("End If : done = True")));
+  assert.ok(fires("vb-bool-literal-compare", crlf("While busy = True : Wait() : End While")));
+});
+
+test("comment markers inside VB strings are not comments", () => {
+  assert.ok(!fires("placeholder-comment", crlf("Dim s = \"// TODO: implement\"")));
+  assert.ok(!fires("narrating-comment", crlf("Dim s = \"# initialize the counter\"")));
+  assert.ok(!fires("placeholder-comment", crlf("Dim q = \"line1", "// TODO: implement\"")));
+});
+
+test("adjacent empty handlers each count; a selective rethrow before a broader Catch is clean", () => {
+  const three = crlf("Try", "X()", "Catch ex As IOException", "Catch ex As TimeoutException", "Catch ex As Exception", "End Try");
+  assert.equal(find("vb-empty-catch", three).count, 3);
+  const selective = crlf("Try", "X()", "Catch ex As OperationCanceledException", "  Throw", "Catch ex As Exception", "  Return Cached", "End Try");
+  assert.ok(!fires("vb-rethrow-only-catch", selective));
+  const lastOnly = crlf("Try", "X()", "Catch ex As IOException", "  Log(ex)", "Catch ex As Exception", "  Throw", "End Try");
+  assert.ok(fires("vb-rethrow-only-catch", lastOnly));
+});
+
+test("vb-bool-literal-compare: a Do While body after `:` is NOT a finding", () => {
+  assert.ok(!fires("vb-bool-literal-compare", crlf("Do While ready : done = True : Loop")));
+});
+
 test("an inline `: REM` is a comment", () => {
   const vs = scan(crlf("X() : REM delve into the tapestry"));
   assert.ok(vs.some((v) => v.word === "delve"), JSON.stringify(vs));
@@ -150,11 +189,20 @@ test("#Region and date literals are not read as comments", () => {
 
 test("hardcoded-secret: a VB `As String` constant is a finding, an environment read is not", () => {
   assert.ok(fires("hardcoded-secret", crlf("Const ApiKey As String = \"q8Zt3kLm9Xw2Pv7R\"")));
-  assert.ok(!fires("hardcoded-secret", crlf("Dim ApiKey As String = Environment.GetEnvironmentVariable(\"API_KEY\")")));
+  assert.ok(!fires("hardcoded-secret", crlf("Dim ApiKey As String = \"api_key\"")));
+  assert.ok(!fires("hardcoded-secret", crlf("Dim Password As String = \"\"")));
 });
 
 test("the escape hatch silences a VB line", () => {
   assert.ok(!fires("vb-bool-literal-compare", crlf("If ok = True Then X() ' anti-slop-allow")));
+});
+
+test("VB test projects and *Tests.vb files are test files: skipInTests rules stay silent", () => {
+  const src = crlf("Const ApiKey As String = \"q8Zt3kLm9Xw2Pv7R\"");
+  assert.ok(!scanContent(src, "Psy.Tests/LoginTests.vb").some((v) => v.name === "hardcoded-secret"));
+  assert.ok(!scanContent(src, "Psy.Tests\\Fixture.vb").some((v) => v.name === "hardcoded-secret"));
+  assert.ok(!scanContent(src, "Psy/ParserTests.vb").some((v) => v.name === "hardcoded-secret"));
+  assert.ok(scanContent(src, "Psy/Contest.vb").some((v) => v.name === "hardcoded-secret"));
 });
 
 test("VB rules never fire on other languages", () => {

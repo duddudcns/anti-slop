@@ -2,6 +2,17 @@
 
 All notable changes to the anti-slop plugin. Versions match `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `anti-slop/.claude-plugin/plugin.json`, the SKILL.md frontmatter, and `anti-slop/scripts/package.json` — all five are bumped together. (It was five, then four when 2.0.0 removed the MCP Server constructor, then five again when 2.2.1 brought the scanner's package.json under the same gate.)
 
+## 2.4.1-vb.1 (fork)
+
+- VB.NET (`.vb`) is a code surface. A string-aware splitter separates `'`/REM comments from
+  code (multi-line strings, inline `: REM`, `#Region` and date literals), so banned words and
+  the shared comment-slop rules reach VB comments, and markers inside strings do not.
+- New cross-line VB slop rules: `vb-empty-catch`, `vb-bool-literal-compare`,
+  `vb-bool-return-branch`, `vb-rethrow-only-catch`. `ShowDialog()`/`IsChecked` (Boolean?)
+  comparisons, `:=` named arguments and selective rethrows before a broader Catch stay clean.
+- `hardcoded-secret` accepts VB `Name As String = "..."`; `*.Tests` projects and `*Tests.vb`
+  count as test files. Known gaps: line continuations, Boolean? locals.
+
 ## Unreleased
 
 - `/slop-check` applies fixes only when asked and does not close its report with an offer to
