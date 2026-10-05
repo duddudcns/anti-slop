@@ -12,6 +12,7 @@ import {
   CODE_PATTERNS,
   TEXT_CONSTRUCTS,
   NATIVE_PATTERNS,
+  VB_PATTERNS,
   WEB_SURFACE_EXTENSIONS,
   NATIVE_UI_EXTENSIONS,
   BANNED_WORD_FIX,
@@ -24,7 +25,7 @@ import { scanContent, fileGuardOk } from "../lib/scan.mjs";
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const DOCTRINE = join(REPO, "skills", "anti-slop", "references", "confidence-and-evidence.md");
 
-const ALL_TABLE_RULES = [...DESIGN_PATTERNS, ...CODE_PATTERNS, ...TEXT_CONSTRUCTS, ...NATIVE_PATTERNS];
+const ALL_TABLE_RULES = [...DESIGN_PATTERNS, ...CODE_PATTERNS, ...TEXT_CONSTRUCTS, ...NATIVE_PATTERNS, ...VB_PATTERNS];
 
 // A rule that sits in both UI tables (media-control-glyph since 2.3.1) is safe only while it
 // is one object and the two surfaces never share an extension; a file on a shared extension

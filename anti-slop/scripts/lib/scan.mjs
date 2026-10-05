@@ -10,6 +10,8 @@ import {
   CODE_PATTERNS,
   TEXT_CONSTRUCTS,
   NATIVE_PATTERNS,
+  VB_PATTERNS,
+  VB_EXTENSIONS,
   CONTEXT_EXCEPTION_REGEXES,
   ESCAPE_HATCH,
   EMDASH_MIN_COUNT,
@@ -86,15 +88,58 @@ function stripStringLiterals(line) {
 // stripProseNoise preserves it: a finding reports the line it was found on, and dropping
 // the non-comment lines made every code-surface line number off by however many lines of
 // actual code preceded the match. Blank lines change no match count.
-function extractComments(content) {
+function extractComments(content, isVb = false) {
   const out = [];
   for (const line of content.split("\n")) {
+    if (isVb) {
+      out.push(ESCAPE_HATCH.test(line) ? "" : splitVbLine(line).comment);
+      continue;
+    }
     if (ESCAPE_HATCH.test(line)) { out.push(""); continue; }
     if (LEADING_COMMENT.test(line)) { out.push(line); continue; }
     const tail = stripStringLiterals(line).match(TRAILING_COMMENT);
     out.push(tail ? tail[0] : "");
   }
   return out.join("\n");
+}
+
+// ── VB.NET: split one line into code and comment ──
+// VB has no block comments: a comment is `'` outside a string literal, or a leading REM.
+// The generic helpers cannot be reused -- they read `'` as a string delimiter and `#` as a
+// comment, while in VB `#Region`/`#If` are directives and `#1/1/2020#` is a date literal.
+// A VB string escapes `"` by doubling it, which the toggle below handles for free.
+function splitVbLine(line) {
+  const text = line.replace(/\r$/, "");
+  if (/^\s*REM\b/i.test(text)) return { code: "", comment: text };
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"') inString = !inString;
+    else if (!inString && (ch === "'" || ch === "‘" || ch === "’")) {
+      return { code: text.slice(0, i), comment: text.slice(i) };
+    }
+  }
+  return { code: text, comment: "" };
+}
+
+// ── VB.NET lines with each comment rewritten to a `//` comment (line count preserved) ──
+// `'''` XML doc comments and REM collapse to the same `// text`. Escape-hatched lines keep
+// their marker, so countLinePattern still skips them.
+function vbCommentNormalizedLines(content) {
+  return content.split("\n").map((l) => {
+    if (ESCAPE_HATCH.test(l)) return l;
+    const { code, comment } = splitVbLine(l);
+    if (!comment) return code;
+    return `${code}// ${comment.replace(/^(?:REM\b|['‘’]+)[ \t]*/i, "")}`;
+  });
+}
+
+// ── VB.NET code view: comments and escape-hatched lines blanked, line count preserved ──
+function vbCodeView(content) {
+  return content
+    .split("\n")
+    .map((l) => (ESCAPE_HATCH.test(l) ? "" : splitVbLine(l).code))
+    .join("\n");
 }
 
 // ── Blank any line carrying the escape-hatch marker (preserves line count) ──
@@ -273,7 +318,7 @@ function countLinePatternOnEscapedLines(lines, pat) {
 // banned-phrase, design-tell, code-pattern. text-construct and emoji are deferred:
 // their per-line escape semantics differ (density/whole-document rules), so counting
 // a hatched line as one suppressed construct would misstate what was avoided.
-function collectSuppressedViolations({ content, lines, isProse, isCode, isStyle, isTestFile, proseScan, allowedWords, contentLower }) {
+function collectSuppressedViolations({ content, lines, isProse, isCode, isVb, isStyle, isTestFile, proseScan, allowedWords, contentLower }) {
   const suppressed = [];
 
   // (a) escape-hatch: words/phrases/design/code hits confined to escape-hatched lines.
@@ -367,7 +412,7 @@ function collectSuppressedViolations({ content, lines, isProse, isCode, isStyle,
   // (b) allowedWords: uses the SAME active textToScan (hatch lines already excluded
   // there), so this never double-counts against (a).
   if ((isProse || isCode) && allowedWords.size > 0) {
-    const textToScan = isProse ? proseScan : extractComments(content);
+    const textToScan = isProse ? proseScan : extractComments(content, isVb);
     for (const word of BANNED_WORDS) {
       const lw = word.toLowerCase();
       if (!allowedWords.has(lw)) continue;
@@ -505,6 +550,7 @@ export function scanContent(content, filePath, opts = {}) {
   // and a guaranteed false positive as soon as one did.
   const isStyle = WEB_SURFACE_EXTENSIONS.has(ext);
   const isNative = NATIVE_UI_EXTENSIONS.has(ext);
+  const isVb = VB_EXTENSIONS.has(ext);
   // Test/fixture files carry fake creds, example.com, and innerHTML scaffolding -- skip the
   // security / dummy-data patterns there so real findings are not drowned in test noise.
   const isTestFile = /\.(test|spec)\.[mc]?[jt]sx?$|(^|\/)(__tests__|__mocks__|fixtures|e2e)\/|\.stories\.[mc]?[jt]sx?$/i.test(filePath);
@@ -517,7 +563,7 @@ export function scanContent(content, filePath, opts = {}) {
 
   // ── Banned words ──
   if (isProse || isCode) {
-    const textToScan = isProse ? proseScan : extractComments(content);
+    const textToScan = isProse ? proseScan : extractComments(content, isVb);
     for (const word of BANNED_WORDS) {
       const lw = word.toLowerCase();
       if (allowedWords.has(lw)) continue;
@@ -632,7 +678,9 @@ export function scanContent(content, filePath, opts = {}) {
   }
 
   // ── Design + code patterns (per-line, with suppress + escape hatch) ──
-  const lines = content.split("\n");
+  // VB lines are rewritten so a `'`/REM comment reads as `//`: the shared comment-slop
+  // rules (narrating, placeholder, deferral, apologetic, banner) key on C-family markers.
+  const lines = isVb ? vbCommentNormalizedLines(content) : content.split("\n");
   if (isStyle) {
     for (const pat of DESIGN_PATTERNS) {
       if (!fileGuardOk(pat, content)) continue;
@@ -646,6 +694,36 @@ export function scanContent(content, filePath, opts = {}) {
           severity: resolveSeverity(pat.severity, count),
           confidence: pat.confidence,
           mode: pat.mode,
+          fix: pat.fix,
+          desc: `${pat.desc} (${count}x)`,
+        });
+      }
+    }
+  }
+  // VB rules match across lines on the comment-free code view. They are not mirrored in
+  // collectSuppressed: the escape hatch blanks its line before matching, so a hatched
+  // line simply contributes nothing, and the dashboard reports no suppressed VB findings.
+  if (isVb) {
+    const view = vbCodeView(content);
+    for (const pat of VB_PATTERNS) {
+      if (!fileGuardOk(pat, content)) continue;
+      const re = freshGlobal(pat.pattern);
+      let count = 0;
+      let line = null;
+      let m;
+      while ((m = re.exec(view)) !== null) {
+        if (m[0] === "") { re.lastIndex++; continue; }
+        if (line === null) line = lineAtIndex(view, m.index + m[0].search(/\S/));
+        count++;
+      }
+      if (meetsThreshold(pat, count)) {
+        violations.push({
+          type: "code-pattern",
+          name: pat.name,
+          count,
+          line,
+          severity: resolveSeverity(pat.severity, count),
+          confidence: pat.confidence,
           fix: pat.fix,
           desc: `${pat.desc} (${count}x)`,
         });
@@ -696,7 +774,7 @@ export function scanContent(content, filePath, opts = {}) {
 
   if (opts.collectSuppressed) {
     violations.push(...collectSuppressedViolations({
-      content, lines, isProse, isCode, isStyle, isTestFile, proseScan, allowedWords, contentLower,
+      content, lines, isProse, isCode, isVb, isStyle, isTestFile, proseScan, allowedWords, contentLower,
     }));
   }
 

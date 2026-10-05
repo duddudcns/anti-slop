@@ -23,6 +23,7 @@ export {
   CODE_PATTERNS,
   TEXT_CONSTRUCTS,
   NATIVE_PATTERNS,
+  VB_PATTERNS,
   CONFIDENCE,
   CONFIDENCE_CLASSES,
 } from "./lib/rules.mjs";
