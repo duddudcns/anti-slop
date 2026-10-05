@@ -234,6 +234,25 @@ test("prose starting with End inside a multi-line string does not end the string
   assert.ok(vs.some((v) => v.word === "delve"), JSON.stringify(vs));
 });
 
+test("English 'as' prose inside a multi-line string does not end it", () => {
+  for (const lead of ["Public transport as well as taxis", "Friend request as a favor", "Class size as reported", "Event log: nothing"]) {
+    const vs = scan(crlf("Dim s = \"Notice:", `${lead} ' delve into the tapestry`, "are allowed\"", "' delve into the tapestry here"));
+    const delve = vs.find((v) => v.word === "delve");
+    assert.ok(delve && delve.line === 4, `${lead}: ${JSON.stringify(vs)}`);
+  }
+});
+
+test("vb-dead-branch is skipped in test files, like the shared dead-branch", () => {
+  assert.ok(!scanContent(crlf("If False Then X()"), "Psy.Tests/Foo.vb").some((v) => v.name === "vb-dead-branch"));
+});
+
+test("dashboard: a hatched secret that the active path would not flag is not reported as suppressed", () => {
+  const sup = (src) => scanContent(src, "M.vb", { collectSuppressed: true }).filter((v) => v.suppressed).map((v) => v.name);
+  assert.ok(!sup(crlf("Const Password As String = \"--password-stdin-x1\" ' anti-slop-allow")).includes("hardcoded-secret"));
+  assert.ok(!sup(crlf("Const Token As String = \"#1a2b3c4d5e6f\" ' anti-slop-allow")).includes("hardcoded-secret"));
+  assert.ok(sup(crlf("Const ApiKey As String = \"sk-proj-abcdefghijklmnop\" ' anti-slop-allow")).includes("hardcoded-secret"));
+});
+
 test("typographic double quotes delimit VB strings", () => {
   const vs = scan(crlf("Dim s = “hello ' delve tapestry”"));
   assert.ok(!vs.some((v) => v.word === "delve"), JSON.stringify(vs));

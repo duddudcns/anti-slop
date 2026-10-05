@@ -136,10 +136,12 @@ function vbCodeHead(text) {
   }
   return { head: text, balanced: !open };
 }
+// Case-sensitive on purpose: the VB editor normalizes keyword case, while prose writes a
+// lower-case "as" ("Public transport as well"), and `As` must be followed by a type.
 // Only openers that do not read as English prose ("For details...", "Return to menu" are
 // common string text): directives, `End <block>`, declaration headers, Imports/Namespace,
 // and Try/Catch/Finally in their statement shapes.
-const VB_STATEMENT_START = /^\s*(?:#|End[ \t]+(?:Sub|Function|Property|Class|Module|Namespace|Try|If|Select|Using|With|While|Structure|Enum|Interface|Get|Set|SyncLock|Operator|Event|AddHandler|RemoveHandler|RaiseEvent)[ \t]*$|(?:(?:Private|Public|Protected|Friend|Shared|Overrides|Overridable|NotOverridable|MustOverride|MustInherit|NotInheritable|Partial|Async|Iterator|Shadows|Overloads|ReadOnly|WriteOnly|Default|WithEvents|Const)[ \t]+)*(?:Sub|Function|Property|Class|Module|Structure|Enum|Interface|Operator|Event|Delegate[ \t]+(?:Sub|Function))[ \t]+[\w+\-*\/<>=&]+[ \t]*(?:\(|$|\bAs\b|:)|(?:Private|Public|Protected|Friend)[ \t]+(?:(?:Shared|ReadOnly|WithEvents|Const)[ \t]+)*\w+[ \t]+As\b|Imports[ \t]+[\w.]+(?:[ \t]*=[ \t]*[\w.]+)?[ \t]*$|Namespace[ \t]+[\w.]+[ \t]*$|Try[ \t]*$|Finally[ \t]*$|Catch(?:[ \t]+\w+[ \t]+As\b|[ \t]*$))/i;
+const VB_STATEMENT_START = /^\s*(?:#|End[ \t]+(?:Sub|Function|Property|Class|Module|Namespace|Try|If|Select|Using|With|While|Structure|Enum|Interface|Get|Set|SyncLock|Operator|Event|AddHandler|RemoveHandler|RaiseEvent)[ \t]*$|(?:(?:Private|Public|Protected|Friend|Shared|Overrides|Overridable|NotOverridable|MustOverride|MustInherit|NotInheritable|Partial|Async|Iterator|Shadows|Overloads|ReadOnly|WriteOnly|Default|WithEvents|Const)[ \t]+)*(?:(?:Sub|Function|Property|Operator|Event|Delegate[ \t]+(?:Sub|Function))[ \t]+[\w+\-*\/<>=&]+[ \t]*(?:\(|$|As[ \t]+[\w.]+)|(?:Class|Module|Structure|Enum|Interface)[ \t]+\w+[ \t]*(?:$|:[ \t]*(?:Inherits|Implements)\b))|(?:Private|Public|Protected|Friend)[ \t]+(?:(?:Shared|ReadOnly|WithEvents|Const)[ \t]+)*\w+[ \t]+As[ \t]+[\w.]+|Imports[ \t]+[\w.]+(?:[ \t]*=[ \t]*[\w.]+)?[ \t]*$|Namespace[ \t]+[\w.]+[ \t]*$|Try[ \t]*$|Finally[ \t]*$|Catch(?:[ \t]+\w+[ \t]+As[ \t]+[\w.]+|[ \t]*$))/;
 function splitVbLines(content) {
   let inString = false;
   return content.split("\n").map((raw) => {
@@ -399,7 +401,7 @@ function countLinePatternOnEscapedLines(lines, pat) {
 // banned-phrase, design-tell, code-pattern. text-construct and emoji are deferred:
 // their per-line escape semantics differ (density/whole-document rules), so counting
 // a hatched line as one suppressed construct would misstate what was avoided.
-function collectSuppressedViolations({ content, lines, isProse, isCode, isVb, isStyle, isTestFile, proseScan, allowedWords, contentLower }) {
+function collectSuppressedViolations({ content, lines, vbRawLines, isProse, isCode, isVb, isStyle, isTestFile, proseScan, allowedWords, contentLower }) {
   const suppressed = [];
 
   // (a) escape-hatch: words/phrases/design/code hits confined to escape-hatched lines.
@@ -477,7 +479,9 @@ function collectSuppressedViolations({ content, lines, isProse, isCode, isVb, is
       if (isTestFile && pat.skipInTests) continue;
       if (isVb && VB_REPLACED_RULES.has(pat.name)) continue;
       if (!fileGuardOk(pat, content)) continue;
-      const { count, line } = countLinePatternOnEscapedLines(lines, pat);
+      // Same line view per rule as the active path (raw strings for non-marker VB rules).
+      const patLines = isVb && !COMMENT_MARKER_RULES.has(pat.name) ? vbRawLines : lines;
+      const { count, line } = countLinePatternOnEscapedLines(patLines, pat);
       if (meetsThreshold(pat, count)) {
         suppressed.push({
           type: "code-pattern", name: pat.name, count, line,
@@ -793,6 +797,7 @@ export function scanContent(content, filePath, opts = {}) {
   if (isVb) {
     const view = vbCodeView(content);
     for (const pat of VB_PATTERNS) {
+      if (isTestFile && pat.skipInTests) continue;
       if (!fileGuardOk(pat, content)) continue;
       const re = freshGlobal(pat.pattern);
       let count = 0;
@@ -863,7 +868,7 @@ export function scanContent(content, filePath, opts = {}) {
 
   if (opts.collectSuppressed) {
     violations.push(...collectSuppressedViolations({
-      content, lines, isProse, isCode, isVb, isStyle, isTestFile, proseScan, allowedWords, contentLower,
+      content, lines, vbRawLines, isProse, isCode, isVb, isStyle, isTestFile, proseScan, allowedWords, contentLower,
     }));
   }
 
