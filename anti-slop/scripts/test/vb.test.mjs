@@ -106,6 +106,9 @@ test("vb-dead-branch: If True/False, #If False, While False are findings; a real
     assert.ok(!fires("vb-dead-branch", crlf(s)), s);
   }
   assert.ok(fires("vb-dead-branch", crlf("While False ' never")));
+  for (const s of ["Do While False : Work() : Loop", "Do Until True : Work() : Loop", "While False : Work() : End While"]) {
+    assert.ok(fires("vb-dead-branch", crlf(s)), s);
+  }
 });
 
 test("vb-generic-naming: DoStuff / ProcessData are findings, a specific name is not", () => {
