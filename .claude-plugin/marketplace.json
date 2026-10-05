@@ -10,7 +10,7 @@
       "name": "anti-slop",
       "description": "Catches AI coding shortcomings in prose, code, and UI output.",
       "source": "./anti-slop",
-      "version": "2.4.0-vb.1",
+      "version": "2.4.1-vb.1",
       "category": "development",
       "keywords": [
         "anti-pattern",
