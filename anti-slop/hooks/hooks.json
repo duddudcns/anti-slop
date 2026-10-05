@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 20,
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/slop-scan-hook.cjs\" || exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
