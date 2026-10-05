@@ -34,7 +34,9 @@ function formatFindings(report, filePath) {
 function projectRoot(filePath, sessionCwd) {
   let dir = path.dirname(path.resolve(filePath));
   for (;;) {
-    if (fs.existsSync(path.join(dir, ".anti-slop")) || fs.existsSync(path.join(dir, ".git"))) return dir;
+    // .anti-slop/config.json, not the bare folder: ~/.anti-slop/ is the scanner's global
+    // registry (written by --record / dashboard) and must not make the home folder a root.
+    if (fs.existsSync(path.join(dir, ".anti-slop", "config.json")) || fs.existsSync(path.join(dir, ".git"))) return dir;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;

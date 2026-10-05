@@ -141,6 +141,9 @@ test("vb-bool-ternary: If/IIf returning True/False is a finding, a real ternary 
     assert.ok(!fires("vb-bool-ternary", crlf(s)), s);
   }
   assert.ok(fires("vb-bool-ternary", crlf("chk.IsChecked = If(x = 1, True, False)")));
+  assert.ok(fires("vb-bool-ternary", crlf("ok = If (count > 0, True, False)")));
+  assert.ok(fires("vb-bool-ternary", crlf("ok = IIf (IsValid(x), False, True)")));
+  assert.ok(fires("vb-bool-ternary", crlf("Return If (n > 0, True, False)")));
 });
 
 test("vb-bool-assign-branch: If/Else assigning True/False to one variable is a finding", () => {
