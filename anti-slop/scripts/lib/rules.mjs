@@ -525,7 +525,7 @@ export const VB_PATTERNS = [
   // WPF `ShowDialog()` and `IsChecked` are Boolean? (Nothing on close / indeterminate),
   // where `= True` is the idiom. A Boolean? local still matches: a known limitation. The
   // scan also stops at `:`, so `While run : done = True` is not read as a comparison.
-  { name: "vb-bool-literal-compare", scope: "file", severity: "low", confidence: CONFIDENCE.QUALITY, pattern: /\b(?:If|ElseIf|While|Until|AndAlso|OrElse)\b(?:(?!\bThen\b)[^\n:])*?(?<!\b(?:ShowDialog\((?:[^()\n]|\([^()\n]*\))*\)|IsChecked)[ \t]*)(?:<>|(?<!:)=|\bIs(?:Not)?\b)[ \t]*(?:True|False)\b/gi, fix: "Test the boolean directly: `If done Then`, `If Not done Then`.", desc: "Boolean compared to a True/False literal" },
+  { name: "vb-bool-literal-compare", scope: "file", severity: "low", confidence: CONFIDENCE.QUALITY, pattern: /\b(?:If|ElseIf|While|Until|AndAlso|OrElse)\b(?:(?!\bThen\b)(?:[^\n:]|:(?==)))*?(?<!\b(?:ShowDialog\((?:[^()\n]|\([^()\n]*\))*\)|IsChecked)[ \t]*)(?:<>|(?<!:)=|\bIs(?:Not)?\b)[ \t]*(?:True|False)\b/gi, fix: "Test the boolean directly: `If done Then`, `If Not done Then`.", desc: "Boolean compared to a True/False literal" },
   // The branch the condition already is: return the condition.
   { name: "vb-bool-return-branch", scope: "file", severity: "low", confidence: CONFIDENCE.QUALITY, pattern: /^[ \t]*If\b[^\n]*\bThen[ \t]*\n[ \t]*Return[ \t]+(?:True|False)[ \t]*\n[ \t]*Else[ \t]*\n[ \t]*Return[ \t]+(?:True|False)[ \t]*\n[ \t]*End[ \t]+If\b/gim, fix: "Return the condition itself (`Return x > 0`), with Not if the branches are reversed, or the literal if both agree.", desc: "If/Else that only returns True/False" },
   // A Catch whose whole body is a rethrow does nothing but cost a stack frame, and
