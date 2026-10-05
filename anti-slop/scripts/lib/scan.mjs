@@ -115,23 +115,28 @@ function extractComments(content, isVb = false) {
 // `//`, `/*`, `--`, `#`, `*` inside strings to `_`, so `"// TODO: implement"` is not a
 // placeholder comment. A single `-` or `/` stays, so `"sk-..."` and base64 keys still match.
 const VB_COMMENT_CHARS = new Set(["'", "‘", "’"]);
+// The VB lexer also takes typographic double quotes as string delimiters.
+const VB_QUOTE_CHARS = new Set(['"', "“", "”"]);
 // Shared rules that key on a comment marker and so must not see markers inside strings.
 const COMMENT_MARKER_RULES = new Set(["placeholder-comment", "narrating-comment", "apologetic-comment", "deferral-comment", "banner-comment", "suppression-comment"]);
 
 // Quote parity of a line's code part, read as if no string were open: a trailing comment
 // may hold a lone `"` (`Sub F() ' "x`) and must not block string-state recovery.
-function codeQuotesBalanced(text) {
+// Returns the code part (so a trailing `' comment` does not defeat a `$`-anchored opener)
+// and whether its quotes balance.
+function vbCodeHead(text) {
   let open = false;
-  for (const ch of text) {
-    if (ch === '"') open = !open;
-    else if (!open && VB_COMMENT_CHARS.has(ch)) break;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (VB_QUOTE_CHARS.has(ch)) open = !open;
+    else if (!open && VB_COMMENT_CHARS.has(ch)) return { head: text.slice(0, i).trimEnd(), balanced: true };
   }
-  return !open;
+  return { head: text, balanced: !open };
 }
 // Only openers that do not read as English prose ("For details...", "Return to menu" are
 // common string text): directives, `End <block>`, declaration headers, Imports/Namespace,
 // and Try/Catch/Finally in their statement shapes.
-const VB_STATEMENT_START = /^\s*(?:#|End[ \t]+(?:Sub|Function|Property|Class|Module|Namespace|Try|If|Select|Using|With|While|Structure|Enum|Interface|Get|Set)\b|(?:(?:Private|Public|Protected|Friend|Shared|Overrides|Overridable|Partial|Async)[ \t]+)*(?:Sub|Function|Property|Class|Module|Structure|Enum|Interface)[ \t]+\w+[ \t]*(?:\(|$)|(?:Imports|Namespace)[ \t]+[\w.]+[ \t]*$|Try[ \t]*$|Finally[ \t]*$|Catch(?:[ \t]+\w+[ \t]+As\b|[ \t]*$))/i;
+const VB_STATEMENT_START = /^\s*(?:#|End[ \t]+(?:Sub|Function|Property|Class|Module|Namespace|Try|If|Select|Using|With|While|Structure|Enum|Interface|Get|Set|SyncLock|Operator|Event|AddHandler|RemoveHandler|RaiseEvent)\b|(?:(?:Private|Public|Protected|Friend|Shared|Overrides|Overridable|NotOverridable|MustOverride|MustInherit|NotInheritable|Partial|Async|Iterator|Shadows|Overloads|ReadOnly|WriteOnly|Default|WithEvents|Const)[ \t]+)*(?:Sub|Function|Property|Class|Module|Structure|Enum|Interface|Operator|Event|Delegate[ \t]+(?:Sub|Function))[ \t]+[\w+\-*\/<>=&]+[ \t]*(?:\(|$|\bAs\b|:)|(?:Private|Public|Protected|Friend)[ \t]+(?:(?:Shared|ReadOnly|WithEvents|Const)[ \t]+)*\w+[ \t]+As\b|Imports[ \t]+[\w.]+(?:[ \t]*=[ \t]*[\w.]+)?[ \t]*$|Namespace[ \t]+[\w.]+[ \t]*$|Try[ \t]*$|Finally[ \t]*$|Catch(?:[ \t]+\w+[ \t]+As\b|[ \t]*$))/i;
 function splitVbLines(content) {
   let inString = false;
   return content.split("\n").map((raw) => {
@@ -142,14 +147,17 @@ function splitVbLines(content) {
     // The line must also hold an even number of quotes, i.e. parse as a whole statement on
     // its own; `Return now"` closing a real multi-line string keeps the string state. Known
     // gap: a multi-line string whose continuation line itself reads as a statement.
-    if (inString && VB_STATEMENT_START.test(text) && codeQuotesBalanced(text)) inString = false;
+    if (inString) {
+      const { head, balanced } = vbCodeHead(text);
+      if (balanced && VB_STATEMENT_START.test(head)) inString = false;
+    }
     let bare = "";
     let code = "";
     // True at line start and after `:` until the next non-blank character.
     let atStatementStart = !inString;
     for (let i = 0; i < text.length; i++) {
       const ch = text[i];
-      if (ch === '"') { inString = !inString; bare += ch; code += ch; atStatementStart = false; continue; }
+      if (VB_QUOTE_CHARS.has(ch)) { inString = !inString; bare += '"'; code += ch; atStatementStart = false; continue; }
       if (inString) {
         const pair = ch + (text[i + 1] || "");
         if (pair === "//" || pair === "/*" || pair === "--") { code += "__"; i++; continue; }
@@ -177,8 +185,10 @@ function splitVbLines(content) {
 // must see the real string).
 function vbCommentNormalizedLines(content, masked = true) {
   const split = splitVbLines(content);
+  // Hatched lines are rewritten too: the hatch token sits in the comment, so the rewritten
+  // line still carries it and countLinePattern still skips it, while the dashboard's
+  // suppressed count sees the same masked view the active path would have seen.
   return content.split("\n").map((l, i) => {
-    if (ESCAPE_HATCH.test(l)) return l;
     const { comment } = split[i];
     const code = masked ? split[i].code : split[i].raw;
     if (!comment) return code;
@@ -348,7 +358,11 @@ function extractEscapeHatchedProse(content) {
 
 // Mirror of extractComments that selects only the escape-hatched comment lines, and
 // preserves the line count for the same reason it does.
-function extractEscapeHatchedComments(content) {
+function extractEscapeHatchedComments(content, isVb = false) {
+  if (isVb) {
+    const split = splitVbLines(content);
+    return content.split("\n").map((l, i) => (ESCAPE_HATCH.test(l) ? split[i].comment : "")).join("\n");
+  }
   return content.split("\n")
     .map(l => (/^\s*(\/\/|#|\*|\/\*|<!--|--)/.test(l) && ESCAPE_HATCH.test(l) ? l : ""))
     .join("\n");
@@ -387,7 +401,7 @@ function collectSuppressedViolations({ content, lines, isProse, isCode, isVb, is
 
   // (a) escape-hatch: words/phrases/design/code hits confined to escape-hatched lines.
   if (isProse || isCode) {
-    const hatchedText = isProse ? extractEscapeHatchedProse(content) : extractEscapeHatchedComments(content);
+    const hatchedText = isProse ? extractEscapeHatchedProse(content) : extractEscapeHatchedComments(content, isVb);
     for (const word of BANNED_WORDS) {
       const lw = word.toLowerCase();
       // Allowed words are counted under (b) against the active text; a hatched-only
@@ -621,7 +635,7 @@ export function scanContent(content, filePath, opts = {}) {
   // Case-sensitive and plural on purpose: `Contest.vb`, `SelfTest.vb` and the production
   // interface `IuserTest.vb` are not test files.
   const isTestFile = /\.(test|spec)\.[mc]?[jt]sx?$|(^|\/)(__tests__|__mocks__|fixtures|e2e)\/|\.stories\.[mc]?[jt]sx?$/i.test(filePath)
-    || (isVb && /(^|[\\/])[^\\/]*\.Tests?[\\/]|Tests\.[vV][bB]$/.test(filePath));
+    || (isVb && /(^|[\\/])(?:[^\\/]*\.)?Tests?[\\/]|Tests\.[vV][bB]$/.test(filePath));
   const config = loadProjectConfig();
   const allowedWords = new Set((config.allowedWords || []).map(w => w.toLowerCase()));
   const contentLower = content.toLowerCase();
