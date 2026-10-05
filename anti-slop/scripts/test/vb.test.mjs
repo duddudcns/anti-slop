@@ -152,6 +152,17 @@ test("vb-bool-assign-branch: If/Else assigning True/False to one variable is a f
   assert.ok(!fires("vb-bool-assign-branch", crlf("If x > 0 Then", "  Log(x)", "  ok = True", "Else", "  ok = False", "End If")));
 });
 
+test("review round: compound Not, inner =, lower-case literal, inline XML summary, mixed-language comment", () => {
+  assert.ok(!fires("vb-double-negation", crlf("If Not (enabled OrElse done = False) Then X()")));
+  assert.ok(fires("vb-compare-of-comparison", crlf("If (count = 0) = True Then X()")));
+  assert.ok(fires("vb-compare-of-comparison", crlf("If (count > 0) = true Then X()")));
+  assert.ok(fires("vb-narrating-comment", crlf("''' <summary>Processes the data.</summary>", "Sub P()")));
+  assert.ok(!fires("vb-narrating-comment", crlf("' Check if the 파일이 잠겨 있으면 재시도", "X()")));
+  const t0 = Date.now();
+  scan(crlf("' Constructor" + " ".repeat(50000) + "x"));
+  assert.ok(Date.now() - t0 < 1000, `took ${Date.now() - t0}ms`);
+});
+
 test("vb-double-negation: Not Not / Not (x = False) are findings, a single Not is not", () => {
   assert.ok(fires("vb-double-negation", crlf("If Not Not ready Then X()")));
   assert.ok(fires("vb-double-negation", crlf("If Not (done = False) Then X()")));
