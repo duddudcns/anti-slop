@@ -49,7 +49,8 @@ test("hook reports a VB empty Catch as additionalContext and exits 0", () => {
 test("projectRoot walks up to the folder holding .anti-slop/ (so its config is read)", () => {
   const root = mkdtempSync(join(tmpdir(), "sloproot-"));
   mkdirSync(join(root, ".anti-slop"));
-  mkdirSync(join(root, "src", "deep"), { recursive: true });
+  writeFileSync(join(root, ".anti-slop", "config.json"), "{}");
+  mkdirSync(join(root, "src", "deep", ".anti-slop"), { recursive: true }); // registry-style folder, no config
   const file = join(root, "src", "deep", "M.vb");
   writeFileSync(file, "x");
   assert.equal(projectRoot(file), root);
