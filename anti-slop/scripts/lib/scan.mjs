@@ -160,19 +160,21 @@ function splitVbLines(content) {
     }
     let bare = "";
     let code = "";
+    let str = ""; // string-literal text only (continuation lines of a multi-line string too)
     // True at line start and after `:` until the next non-blank character.
     let atStatementStart = !inString;
     for (let i = 0; i < text.length; i++) {
       const ch = text[i];
-      if (VB_QUOTE_CHARS.has(ch)) { inString = !inString; bare += '"'; code += ch; atStatementStart = false; continue; }
+      if (VB_QUOTE_CHARS.has(ch)) { inString = !inString; bare += '"'; code += ch; str += " "; atStatementStart = false; continue; }
       if (inString) {
+        str += ch;
         const pair = ch + (text[i + 1] || "");
-        if (pair === "//" || pair === "/*" || pair === "--") { code += "__"; i++; continue; }
+        if (pair === "//" || pair === "/*" || pair === "--") { code += "__"; str += text[i + 1]; i++; continue; }
         code += ch === "#" || ch === "*" ? "_" : ch;
         continue;
       }
       if (VB_COMMENT_CHARS.has(ch) || (atStatementStart && /^REM\b/i.test(text.slice(i, i + 4)))) {
-        return { code, raw: text.slice(0, i), bare, comment: text.slice(i) };
+        return { code, raw: text.slice(0, i), bare, str, comment: text.slice(i) };
       }
       code += ch;
       if (ch === ":") atStatementStart = true;
@@ -180,7 +182,7 @@ function splitVbLines(content) {
       bare += ch;
     }
     if (/^\s*#/.test(text)) inString = false;
-    return { code, raw: text, bare, comment: "" };
+    return { code, raw: text, bare, str, comment: "" };
   });
 }
 
@@ -204,12 +206,13 @@ function vbCommentNormalizedLines(content, masked = true) {
 }
 
 // ── VB.NET prose: each line's comment plus its string literals (line count preserved) ──
-function vbProseOnly(content) {
+// `hatchedOnly` gives the same view for escape-hatched lines only (the dashboard's
+// suppressed path), so active and suppressed counts agree.
+function vbProseOnly(content, hatchedOnly = false) {
   const split = splitVbLines(content);
   return content.split("\n").map((l, i) => {
-    if (ESCAPE_HATCH.test(l)) return "";
-    const strings = (split[i].raw.match(/"(?:[^"]|"")*"?/g) || []).join(" ");
-    return `${strings} ${split[i].comment}`;
+    if (ESCAPE_HATCH.test(l) !== hatchedOnly) return "";
+    return `${split[i].str} ${split[i].comment}`;
   }).join("\n");
 }
 
@@ -445,7 +448,7 @@ function collectSuppressedViolations({ content, lines, vbRawLines, isProse, isCo
   // Phrases mirror the active path on BOTH surfaces. Guarding this branch on isProse alone
   // meant an escape-hatched phrase in a code file could not even be reported as suppressed.
   if (isProse || isCode) {
-    const hatchedHay = (isProse ? extractEscapeHatchedProse(content) : extractEscapeHatchedLines(content)).toLowerCase();
+    const hatchedHay = (isProse ? extractEscapeHatchedProse(content) : isVb ? vbProseOnly(content, true) : extractEscapeHatchedLines(content)).toLowerCase();
     for (const phrase of BANNED_PHRASES) {
       if (!phrase) continue;
       const firstIdx = hatchedHay.indexOf(phrase);
@@ -888,19 +891,16 @@ export function scanContent(content, filePath, opts = {}) {
   // why-comments naming a method (`Initialize에서 ...`) and commented-out code. Comment
   // style is not what the VB support is for, so they are Taste notes there (reported by a
   // scan, left out of the hook). Placeholder/deferral/apologetic comments stay as they are.
-  if (isVb) {
-    violations.forEach((v, i) => {
-      if (VB_TASTE_RULES.has(v.name)) violations[i] = { ...v, confidence: CONFIDENCE_TASTE };
-    });
-  }
-
+  // Applied after the suppressed findings are added, so both paths carry the same class.
   if (opts.collectSuppressed) {
     violations.push(...collectSuppressedViolations({
       content, lines, vbRawLines, isProse, isCode, isVb, isStyle, isTestFile, proseScan, allowedWords, contentLower,
     }));
   }
 
-  return violations;
+  return isVb
+    ? violations.map((v) => (VB_TASTE_RULES.has(v.name) ? { ...v, confidence: CONFIDENCE_TASTE } : v))
+    : violations;
 }
 
 // ── Score calculation ──

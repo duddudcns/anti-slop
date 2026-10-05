@@ -198,6 +198,15 @@ test("banned phrases: VB code is not prose; comments and strings still are", () 
   assert.ok(!scan(crlf("For Each token In summary.Split(\",\"c)", "Next")).some((v) => v.phrase === "in summary"));
   assert.ok(scan(crlf("' In summary, this module handles input")).some((v) => v.phrase === "in summary"));
   assert.ok(scan(crlf("Dim s = \"In summary, all good\"")).some((v) => v.phrase === "in summary"));
+  assert.ok(scan(crlf("Dim s = “In summary, all good”")).some((v) => v.phrase === "in summary"));
+  assert.ok(scan(crlf("Dim s = \"first line", "in summary, all good\"")).some((v) => v.phrase === "in summary"));
+});
+
+test("dashboard suppressed path agrees with the active path for VB phrases and narration", () => {
+  const sup = (src) => scanContent(src, "M.vb", { collectSuppressed: true }).filter((v) => v.suppressed);
+  assert.ok(!sup(crlf("For Each token In summary ' anti-slop-allow")).some((v) => v.phrase === "in summary"));
+  const n = sup(crlf("' Initialize the counter anti-slop-allow")).find((v) => v.name === "narrating-comment");
+  assert.ok(!n || n.confidence === "Taste note", JSON.stringify(n));
 });
 
 test("C# and VB now agree on dead branches", () => {
