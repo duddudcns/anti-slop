@@ -89,12 +89,12 @@ function stripStringLiterals(line) {
 // the non-comment lines made every code-surface line number off by however many lines of
 // actual code preceded the match. Blank lines change no match count.
 function extractComments(content, isVb = false) {
+  if (isVb) {
+    const split = splitVbLines(content);
+    return content.split("\n").map((l, i) => (ESCAPE_HATCH.test(l) ? "" : split[i].comment)).join("\n");
+  }
   const out = [];
   for (const line of content.split("\n")) {
-    if (isVb) {
-      out.push(ESCAPE_HATCH.test(line) ? "" : splitVbLine(line).comment);
-      continue;
-    }
     if (ESCAPE_HATCH.test(line)) { out.push(""); continue; }
     if (LEADING_COMMENT.test(line)) { out.push(line); continue; }
     const tail = stripStringLiterals(line).match(TRAILING_COMMENT);
@@ -103,42 +103,65 @@ function extractComments(content, isVb = false) {
   return out.join("\n");
 }
 
-// ── VB.NET: split one line into code and comment ──
-// VB has no block comments: a comment is `'` outside a string literal, or a leading REM.
-// The generic helpers cannot be reused -- they read `'` as a string delimiter and `#` as a
-// comment, while in VB `#Region`/`#If` are directives and `#1/1/2020#` is a date literal.
-// A VB string escapes `"` by doubling it, which the toggle below handles for free.
-function splitVbLine(line) {
-  const text = line.replace(/\r$/, "");
-  if (/^\s*REM\b/i.test(text)) return { code: "", comment: text };
+// ── VB.NET: split every line into code and comment ──
+// VB has no block comments: a comment is `'` outside a string literal, or REM at the start
+// of a statement (line start or after `:`). The generic helpers cannot be reused -- they
+// read `'` as a string delimiter and `#` as a comment, while in VB `#Region`/`#If` are
+// directives and `#1/1/2020#` is a date literal. A VB string escapes `"` by doubling it,
+// which the toggle handles for free, and since VB 14 a string may span lines, so the
+// string state carries from one line to the next. `bare` is the code with string contents
+// removed (quotes kept): the VB rules must not read `"a = True"` as a comparison.
+const VB_COMMENT_CHARS = new Set(["'", "‘", "’"]);
+function splitVbLines(content) {
   let inString = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (ch === '"') inString = !inString;
-    else if (!inString && (ch === "'" || ch === "‘" || ch === "’")) {
-      return { code: text.slice(0, i), comment: text.slice(i) };
+  return content.split("\n").map((raw) => {
+    const text = raw.replace(/\r$/, "");
+    let bare = "";
+    // True at line start and after `:` until the next non-blank character.
+    let atStatementStart = !inString;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '"') { inString = !inString; bare += ch; atStatementStart = false; continue; }
+      if (inString) continue;
+      if (VB_COMMENT_CHARS.has(ch) || (atStatementStart && /^REM\b/i.test(text.slice(i, i + 4)))) {
+        return { code: text.slice(0, i), bare, comment: text.slice(i) };
+      }
+      if (ch === ":") atStatementStart = true;
+      else if (ch !== " " && ch !== "\t") atStatementStart = false;
+      bare += ch;
     }
-  }
-  return { code: text, comment: "" };
+    return { code: text, bare, comment: "" };
+  });
 }
 
 // ── VB.NET lines with each comment rewritten to a `//` comment (line count preserved) ──
 // `'''` XML doc comments and REM collapse to the same `// text`. Escape-hatched lines keep
 // their marker, so countLinePattern still skips them.
 function vbCommentNormalizedLines(content) {
-  return content.split("\n").map((l) => {
+  const split = splitVbLines(content);
+  return content.split("\n").map((l, i) => {
     if (ESCAPE_HATCH.test(l)) return l;
-    const { code, comment } = splitVbLine(l);
+    const { code, comment } = split[i];
     if (!comment) return code;
     return `${code}// ${comment.replace(/^(?:REM\b|['‘’]+)[ \t]*/i, "")}`;
   });
 }
 
-// ── VB.NET code view: comments and escape-hatched lines blanked, line count preserved ──
+// ── VB.NET code view for the cross-line VB rules (line count preserved) ──
+// Comments and string contents are removed. An escape-hatched line becomes a placeholder
+// statement rather than a blank: blanking it would empty a Catch body and turn the hatch
+// into a new finding on another line. A line longer than VB_MAX_LINE (generated or
+// minified code) is blanked so the lazy scans in VB_PATTERNS stay linear in practice.
+const VB_MAX_LINE = 2000;
 function vbCodeView(content) {
+  const split = splitVbLines(content);
   return content
     .split("\n")
-    .map((l) => (ESCAPE_HATCH.test(l) ? "" : splitVbLine(l).code))
+    .map((l, i) => {
+      if (ESCAPE_HATCH.test(l)) return "_hatched_";
+      const { bare } = split[i];
+      return bare.length > VB_MAX_LINE ? "" : bare;
+    })
     .join("\n");
 }
 

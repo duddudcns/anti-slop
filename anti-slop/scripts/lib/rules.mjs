@@ -518,12 +518,12 @@ export const CODE_PATTERNS = [
 // noisier or emptier than it needs to be), not correctness or security checks. A comment-only Catch body
 // counts as empty, the same call upstream `swallowed-error` makes for `catch {}` + `//`.
 export const VB_PATTERNS = [
-  { name: "vb-empty-catch", scope: "file", severity: "medium", confidence: CONFIDENCE.HARD, pattern: /^[ \t]*Catch\b[^\n]*\n(?:[ \t]*\n)*?[ \t]*(?:End[ \t]+Try|Finally)\b|\bCatch\b[^:\n]*:[ \t]*End[ \t]+Try\b/gim, fix: "Handle it, log it, or rethrow with `Throw`; a Catch that does nothing hides the failure from everyone downstream.", desc: "Empty VB Catch block (error swallowed)" },
+  { name: "vb-empty-catch", scope: "file", severity: "medium", confidence: CONFIDENCE.HARD, pattern: /^[ \t]*Catch\b[^:\n]*\n(?:[ \t]*\n)*?[ \t]*(?:End[ \t]+Try|Finally|Catch)\b|\bCatch\b[^:\n]*:[ \t]*End[ \t]+Try\b/gim, fix: "Handle it, log it, or rethrow with `Throw`; a Catch that does nothing hides the failure from everyone downstream.", desc: "Empty VB Catch block (error swallowed)" },
   // `If x = True Then` reads the boolean twice; `= False` / `<> True` hide a Not behind a
   // comparison. Assignments (`done = True`) are not conditions and do not match, and the
   // match stops at `Then` so a single-line If body (`If ok Then x.Visible = True`) is not one.
   // WPF `ShowDialog()` returns Boolean? (Nothing on close), where `= True` is the idiom.
-  { name: "vb-bool-literal-compare", scope: "file", severity: "low", confidence: CONFIDENCE.QUALITY, pattern: /\b(?:If|ElseIf|While|Until|AndAlso|OrElse)\b(?:(?!\bThen\b)[^\n])*?(?<!\bShowDialog\([^()\n]*\)[ \t]*)(?:<>|=|\bIs(?:Not)?\b)[ \t]*(?:True|False)\b/gi, fix: "Test the boolean directly: `If done Then`, `If Not done Then`.", desc: "Boolean compared to a True/False literal" },
+  { name: "vb-bool-literal-compare", scope: "file", severity: "low", confidence: CONFIDENCE.QUALITY, pattern: /\b(?:If|ElseIf|While|Until|AndAlso|OrElse)\b(?:(?!\bThen\b)[^\n])*?(?<!\bShowDialog\((?:[^()\n]|\([^()\n]*\))*\)[ \t]*)(?:<>|(?<!:)=|\bIs(?:Not)?\b)[ \t]*(?:True|False)\b/gi, fix: "Test the boolean directly: `If done Then`, `If Not done Then`.", desc: "Boolean compared to a True/False literal" },
   // The branch the condition already is: return the condition.
   { name: "vb-bool-return-branch", scope: "file", severity: "low", confidence: CONFIDENCE.QUALITY, pattern: /^[ \t]*If\b[^\n]*\bThen[ \t]*\n[ \t]*Return[ \t]+(?:True|False)[ \t]*\n[ \t]*Else[ \t]*\n[ \t]*Return[ \t]+(?:True|False)[ \t]*\n[ \t]*End[ \t]+If\b/gim, fix: "Return the condition itself (`Return x > 0`), negated with Not if the branches are reversed.", desc: "If/Else that only returns True/False" },
   // A Catch whose whole body is a rethrow does nothing but cost a stack frame, and
