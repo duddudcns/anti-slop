@@ -211,6 +211,33 @@ test("a quote inside a trailing comment does not block string-state recovery", (
   assert.ok(vs.some((v) => v.word === "delve"), JSON.stringify(vs));
 });
 
+test("after a stray quote, declaration headers recover the string state", () => {
+  const heads = ["Public Property Name As String", "Public ReadOnly Property Name As String", "Public MustInherit Class Foo",
+    "Public Class Foo : Inherits Bar", "Public Overloads Function F() As Integer", "Public Event Changed As EventHandler",
+    "Public Delegate Sub D()", "Public Const X As Integer = 1", "Private WithEvents btn As Button", "Imports IO = System.IO", "End SyncLock"];
+  for (const h of heads) {
+    const vs = scan(crlf("Dim x = <a>d\"</a>", `${h} ' delve tapestry`));
+    assert.ok(vs.some((v) => v.word === "delve"), h);
+  }
+});
+
+test("typographic double quotes delimit VB strings", () => {
+  const vs = scan(crlf("Dim s = “hello ' delve tapestry”"));
+  assert.ok(!vs.some((v) => v.word === "delve"), JSON.stringify(vs));
+});
+
+test("collectSuppressed: a hatched VB comment reports what it suppressed, a hatched string does not", async () => {
+  const sup = (src) => scanContent(src, "M.vb", { collectSuppressed: true }).filter((v) => v.suppressed).map((v) => v.name || v.word);
+  assert.ok(sup(crlf("' TODO: implement anti-slop-allow")).includes("placeholder-comment"));
+  assert.ok(sup(crlf("' delve into the tapestry anti-slop-allow")).includes("delve"));
+  assert.ok(!sup(crlf("Dim s = \"// TODO: implement\" ' anti-slop-allow")).includes("placeholder-comment"));
+});
+
+test("a plain Tests folder holds test files", () => {
+  const src = crlf("Const ApiKey As String = \"q8Zt3kLm9Xw2Pv7R\"");
+  assert.ok(!scanContent(src, "Psy/Tests/Foo.vb").some((v) => v.name === "hardcoded-secret"));
+});
+
 test("SelfTest.vb and IuserTest.vb are production files, not tests", () => {
   const src = crlf("Const ApiKey As String = \"q8Zt3kLm9Xw2Pv7R\"");
   for (const p of ["Psy/SelfTest.vb", "Psy/TestControl/IuserTest.vb"]) {
