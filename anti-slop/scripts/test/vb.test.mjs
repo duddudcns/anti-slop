@@ -102,6 +102,10 @@ test("vb-dead-branch: If True/False, #If False, While False are findings; a real
     assert.ok(fires("vb-dead-branch", crlf(s)), s);
   }
   assert.ok(!fires("vb-dead-branch", crlf("If TrueCount > 0 Then", "#If DEBUG Then", "While running", "' If True Then")));
+  for (const s of ["While False OrElse keepRunning", "While False = finished", "Do Until True AndAlso finished"]) {
+    assert.ok(!fires("vb-dead-branch", crlf(s)), s);
+  }
+  assert.ok(fires("vb-dead-branch", crlf("While False ' never")));
 });
 
 test("vb-generic-naming: DoStuff / ProcessData are findings, a specific name is not", () => {
@@ -204,6 +208,9 @@ test("English prose at the start of a multi-line string line does not end the st
 
 test("suppression markers inside VB strings are not suppressions", () => {
   assert.ok(!fires("suppression-comment", crlf("Dim s = \"# type: ignore\"")));
+  for (const t of ["@ts-ignore", "@ts-nocheck", "eslint-disable-next-line", "@SuppressWarnings"]) {
+    assert.ok(!fires("suppression-comment", crlf(`Dim s = "${t}"`)), t);
+  }
 });
 
 test("a quote inside a trailing comment does not block string-state recovery", () => {
@@ -219,6 +226,12 @@ test("after a stray quote, declaration headers recover the string state", () => 
     const vs = scan(crlf("Dim x = <a>d\"</a>", `${h} ' delve tapestry`));
     assert.ok(vs.some((v) => v.word === "delve"), h);
   }
+});
+
+test("prose starting with End inside a multi-line string does not end the string", () => {
+  const vs = scan(crlf("Dim s = \"x", "End event registration ' TODO: implement", "\"", "' delve tapestry"));
+  assert.ok(!fires("placeholder-comment", crlf("Dim s = \"x", "End event registration ' TODO: implement", "\"")));
+  assert.ok(vs.some((v) => v.word === "delve"), JSON.stringify(vs));
 });
 
 test("typographic double quotes delimit VB strings", () => {
