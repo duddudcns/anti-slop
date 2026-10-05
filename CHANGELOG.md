@@ -9,6 +9,13 @@ All notable changes to the anti-slop plugin. Versions match `.claude-plugin/plug
   (`vb-bool-literal-compare`, demoted in vb.2).
 - `vb-narrating-comment` runs on comment text only (`scope: "comment"`) and covers VB
   narration the shared rule misses (`' Check if the file exists`, `''' Processes the X.`).
+- In `.vb` files the narration rules (`narrating-comment`, `vb-narrating-comment`) are Taste
+  notes: they mostly hit Korean why-comments naming a method and commented-out code.
+  Placeholder, deferral and apologetic comments keep their class.
+- VB banned phrases are searched in comments and string literals only, so
+  `For Each token In summary` is not the phrase "in summary".
+- The hook resolves the project root (`.anti-slop/config.json` anywhere up the tree, else
+  the nearest `.git`) and reports "first at line N".
 
 ## 2.4.1-vb.3 (fork)
 

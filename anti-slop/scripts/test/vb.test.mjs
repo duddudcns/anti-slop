@@ -182,6 +182,24 @@ test("vb-narrating-comment: VB-shaped narration is a finding, a why-comment and 
   }
 });
 
+test("VB narration rules are Taste notes; code rules and placeholder comments are not", () => {
+  const vs = scan(crlf("' Initialize the counter", "' Check if the file exists", "Sub F()", "  ' TODO: implement", "End Sub"));
+  for (const r of ["narrating-comment", "vb-narrating-comment"]) {
+    const v = vs.find((x) => x.name === r);
+    assert.ok(v && v.confidence === "Taste note", `${r}: ${JSON.stringify(v)}`);
+  }
+  assert.equal(vs.find((x) => x.name === "placeholder-comment").confidence, "Hard defect");
+  // Other languages keep the shared rule's own class.
+  const js = scanContent("// Initialize the counter\nlet i = 0;\n", "a.js").find((x) => x.name === "narrating-comment");
+  assert.equal(js.confidence, "Quality defect");
+});
+
+test("banned phrases: VB code is not prose; comments and strings still are", () => {
+  assert.ok(!scan(crlf("For Each token In summary.Split(\",\"c)", "Next")).some((v) => v.phrase === "in summary"));
+  assert.ok(scan(crlf("' In summary, this module handles input")).some((v) => v.phrase === "in summary"));
+  assert.ok(scan(crlf("Dim s = \"In summary, all good\"")).some((v) => v.phrase === "in summary"));
+});
+
 test("C# and VB now agree on dead branches", () => {
   assert.ok(scanContent("class A { void F() { if (true) { X(); } } }\n", "A.cs").some((v) => v.name === "dead-branch"));
   assert.ok(fires("vb-dead-branch", crlf("If True Then", "X()", "End If")));

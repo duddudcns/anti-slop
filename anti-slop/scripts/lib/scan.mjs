@@ -122,6 +122,8 @@ const COMMENT_MARKER_RULES = new Set(["placeholder-comment", "narrating-comment"
 // Shared rules whose tokens cannot occur in VB (`@ts-ignore`, `eslint-disable`, ...), so a
 // hit can only be string text; the VB table carries the VB form (vb-warning-suppression).
 const VB_REPLACED_RULES = new Set(["suppression-comment"]);
+const VB_TASTE_RULES = new Set(["narrating-comment"]);
+const CONFIDENCE_TASTE = "Taste note";
 
 // Quote parity of a line's code part, read as if no string were open: a trailing comment
 // may hold a lone `"` (`Sub F() ' "x`) and must not block string-state recovery.
@@ -199,6 +201,16 @@ function vbCommentNormalizedLines(content, masked = true) {
     if (!comment) return code;
     return `${code}// ${comment.replace(/^(?:REM\b|['‘’]+)[ \t]*/i, "")}`;
   });
+}
+
+// ── VB.NET prose: each line's comment plus its string literals (line count preserved) ──
+function vbProseOnly(content) {
+  const split = splitVbLines(content);
+  return content.split("\n").map((l, i) => {
+    if (ESCAPE_HATCH.test(l)) return "";
+    const strings = (split[i].raw.match(/"(?:[^"]|"")*"?/g) || []).join(" ");
+    return `${strings} ${split[i].comment}`;
+  }).join("\n");
 }
 
 // ── VB.NET code view for the cross-line VB rules (line count preserved) ──
@@ -683,7 +695,9 @@ export function scanContent(content, filePath, opts = {}) {
   // in a copy constant ships to a user. Escape-hatched lines are removed on both surfaces --
   // routing code through the raw content was the one rule family the hatch did not reach.
   if (isProse || isCode) {
-    const hay = (isProse ? proseScan : stripEscapeHatchLines(content)).toLowerCase();
+    // VB: comments and string literals only. Scanning the code itself reads VB keywords as
+    // prose (`For Each token In summary` is not the phrase "in summary").
+    const hay = (isProse ? proseScan : isVb ? vbProseOnly(content) : stripEscapeHatchLines(content)).toLowerCase();
     for (const phrase of BANNED_PHRASES) {
       if (!phrase) continue; // indexOf("") returns 0, which would loop forever below
       const firstIdx = hay.indexOf(phrase);
@@ -868,6 +882,16 @@ export function scanContent(content, filePath, opts = {}) {
         });
       }
     }
+  }
+
+  // VB: narration rules key on English verbs, and in this codebase they mostly hit Korean
+  // why-comments naming a method (`Initialize에서 ...`) and commented-out code. Comment
+  // style is not what the VB support is for, so they are Taste notes there (reported by a
+  // scan, left out of the hook). Placeholder/deferral/apologetic comments stay as they are.
+  if (isVb) {
+    violations.forEach((v, i) => {
+      if (VB_TASTE_RULES.has(v.name)) violations[i] = { ...v, confidence: CONFIDENCE_TASTE };
+    });
   }
 
   if (opts.collectSuppressed) {
