@@ -2,6 +2,13 @@
 
 All notable changes to the anti-slop plugin. Versions match `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `anti-slop/.claude-plugin/plugin.json`, the SKILL.md frontmatter, and `anti-slop/scripts/package.json` — all five are bumped together. (It was five, then four when 2.0.0 removed the MCP Server constructor, then five again when 2.2.1 brought the scanner's package.json under the same gate.)
 
+## 2.4.1-vb.5 (fork)
+
+- VB line continuations: a statement split with a trailing ` _` or an implicit continuation
+  (a line ending in `,` `(` `&` `+` `=` `AndAlso` `OrElse` ...) is joined onto its first line
+  before the cross-line VB rules run; absorbed lines stay blank so line numbers hold.
+- The If/Else branch rules allow blank (or comment-only) lines after `Then`.
+
 ## 2.4.1-vb.4 (fork)
 
 - Boolean busywork rules (Quality): `vb-compare-of-comparison`, `vb-bool-ternary`,

@@ -1,6 +1,6 @@
 {
   "name": "anti-slop-scanner",
-  "version": "2.4.1-vb.4",
+  "version": "2.4.1-vb.5",
   "scripts": {
     "test": "node --import ./test/env.mjs --test test/cli.test.mjs test/corpus.test.mjs test/corpus-contract.test.mjs test/dashboard.test.mjs test/dogfood.test.mjs test/module-parity.test.mjs test/no-mcp.test.mjs test/prose-scope.test.mjs test/references.test.mjs test/rule-additions.test.mjs test/rule-false-positives.test.mjs test/rule-metadata.test.mjs test/rule-narrowing.test.mjs test/scanner.test.mjs test/stats.test.mjs test/store.test.mjs test/vb.test.mjs test/hook.test.mjs",
     "measure": "node measure.mjs",

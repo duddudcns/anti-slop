@@ -209,6 +209,28 @@ test("dashboard suppressed path agrees with the active path for VB phrases and n
   assert.ok(!n || n.confidence === "Taste note", JSON.stringify(n));
 });
 
+// ── Line continuations (explicit ` _` and implicit) ──────────────────────────
+
+test("continued statements are judged as one statement, reported on their first line", () => {
+  const ternary = crlf("Sub F()", "  ok = If(count > 0, _", "         True, False)", "End Sub");
+  assert.equal(find("vb-bool-ternary", ternary)?.line, 2);
+  assert.ok(fires("vb-bool-ternary", crlf("ok = If(count > 0,", "        True,", "        False)")));
+  assert.ok(fires("vb-compare-of-comparison", crlf("If (a > 0 AndAlso", "    b > 0) = True Then X()")));
+  assert.ok(fires("vb-empty-catch", crlf("Try", "X()", "Catch ex As Exception When ex.Message <> \"\" AndAlso _", "    ex.HResult <> 0", "End Try")));
+  assert.ok(fires("vb-bool-assign-branch", crlf("If a > 0 AndAlso", "   b > 0 Then", "  ok = True", "Else", "  ok = False", "End If")));
+});
+
+test("continuation joining does not glue separate statements or bodies", () => {
+  // A Catch body continued over two lines is still a body, not an empty Catch.
+  assert.ok(!fires("vb-empty-catch", crlf("Try", "X()", "Catch ex As Exception", "  Log(ex.Message, _", "      ex)", "End Try")));
+  // A blank line after a trailing operator ends the run.
+  assert.ok(!fires("vb-bool-ternary", crlf("x = a +", "", "y = If(ok, \"a\", \"b\")")));
+  // An identifier ending in _ is not a continuation.
+  assert.ok(!fires("vb-dead-branch", crlf("Dim my_", "If False_Flag Then X()")));
+  // Line numbers after a joined statement are unchanged.
+  assert.equal(find("vb-dead-branch", crlf("Dim s = Join(a, _", "  b)", "If False Then X()"))?.line, 3);
+});
+
 test("C# and VB now agree on dead branches", () => {
   assert.ok(scanContent("class A { void F() { if (true) { X(); } } }\n", "A.cs").some((v) => v.name === "dead-branch"));
   assert.ok(fires("vb-dead-branch", crlf("If True Then", "X()", "End If")));
