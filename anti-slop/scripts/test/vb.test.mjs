@@ -202,6 +202,15 @@ test("English prose at the start of a multi-line string line does not end the st
   }
 });
 
+test("suppression markers inside VB strings are not suppressions", () => {
+  assert.ok(!fires("suppression-comment", crlf("Dim s = \"# type: ignore\"")));
+});
+
+test("a quote inside a trailing comment does not block string-state recovery", () => {
+  const vs = scan(crlf("Dim x = <a>d\"</a>", "Sub F() ' \"delve tapestry", "If done = True Then X()", "End Sub"));
+  assert.ok(vs.some((v) => v.word === "delve"), JSON.stringify(vs));
+});
+
 test("SelfTest.vb and IuserTest.vb are production files, not tests", () => {
   const src = crlf("Const ApiKey As String = \"q8Zt3kLm9Xw2Pv7R\"");
   for (const p of ["Psy/SelfTest.vb", "Psy/TestControl/IuserTest.vb"]) {

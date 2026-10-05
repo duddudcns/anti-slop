@@ -116,7 +116,18 @@ function extractComments(content, isVb = false) {
 // placeholder comment. A single `-` or `/` stays, so `"sk-..."` and base64 keys still match.
 const VB_COMMENT_CHARS = new Set(["'", "‘", "’"]);
 // Shared rules that key on a comment marker and so must not see markers inside strings.
-const COMMENT_MARKER_RULES = new Set(["placeholder-comment", "narrating-comment", "apologetic-comment", "deferral-comment", "banner-comment"]);
+const COMMENT_MARKER_RULES = new Set(["placeholder-comment", "narrating-comment", "apologetic-comment", "deferral-comment", "banner-comment", "suppression-comment"]);
+
+// Quote parity of a line's code part, read as if no string were open: a trailing comment
+// may hold a lone `"` (`Sub F() ' "x`) and must not block string-state recovery.
+function codeQuotesBalanced(text) {
+  let open = false;
+  for (const ch of text) {
+    if (ch === '"') open = !open;
+    else if (!open && VB_COMMENT_CHARS.has(ch)) break;
+  }
+  return !open;
+}
 // Only openers that do not read as English prose ("For details...", "Return to menu" are
 // common string text): directives, `End <block>`, declaration headers, Imports/Namespace,
 // and Try/Catch/Finally in their statement shapes.
@@ -131,7 +142,7 @@ function splitVbLines(content) {
     // The line must also hold an even number of quotes, i.e. parse as a whole statement on
     // its own; `Return now"` closing a real multi-line string keeps the string state. Known
     // gap: a multi-line string whose continuation line itself reads as a statement.
-    if (inString && VB_STATEMENT_START.test(text) && (text.split('"').length - 1) % 2 === 0) inString = false;
+    if (inString && VB_STATEMENT_START.test(text) && codeQuotesBalanced(text)) inString = false;
     let bare = "";
     let code = "";
     // True at line start and after `:` until the next non-blank character.
