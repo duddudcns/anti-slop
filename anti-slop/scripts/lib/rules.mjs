@@ -534,6 +534,12 @@ export const VB_PATTERNS = [
   // cancellation out of a fallback handler) and stays clean. The boundaries are lookaheads
   // so adjacent handlers each count. Known gap: `_` / implicit line continuations.
   { name: "vb-rethrow-only-catch", scope: "file", severity: "medium", confidence: CONFIDENCE.QUALITY, pattern: /^[ \t]*Catch\b(?:[ \t]+(\w+)[ \t]+As[ \t]+[\w.]+)?[ \t]*\n(?:[ \t]*\n)*?[ \t]*Throw(?:[ \t]+\1)?[ \t]*\n(?:[ \t]*\n)*?(?=[ \t]*(?:End[ \t]+Try|Finally)\b)/gim, fix: "Delete the Catch and let the exception propagate; if you must catch, add context and keep the stack with a bare `Throw`.", desc: "Catch that only rethrows" },
+  // VB twins of shared rules whose patterns only know C-family/Python syntax, so C# and VB
+  // get the same coverage: dead-branch (`if (true)`), generic-naming (`function doStuff`),
+  // suppression-comment (`eslint-disable`, `@SuppressWarnings`).
+  { name: "vb-dead-branch", scope: "file", severity: "medium", confidence: CONFIDENCE.HARD, pattern: /^[ \t]*(?:#?(?:If|ElseIf)[ \t]+(?:True|False)[ \t]+Then\b|(?:Do[ \t]+)?While[ \t]+False\b|Do[ \t]+Until[ \t]+True\b)/gim, fix: "Delete the branch that cannot run and the code inside it; where the flip must stay switchable, make it a named flag with a default.", desc: "Dead branch scaffolding (If True Then / If False Then / #If False)" },
+  { name: "vb-generic-naming", scope: "file", severity: "low", confidence: CONFIDENCE.QUALITY, pattern: /\b(?:Sub|Function)[ \t]+(?:Process_?Data|Handle_?Data|Do_?Stuff|Do_?Something|My_?Function|Process_?Item|Process_?Input|Main_?Function)\b/gi, fix: "Name it for what it does to what (`ApplyCalibration`, `LoadRecipe`), the way a caller would search for it.", desc: "Generic Sub/Function name (DoStuff, ProcessData) that says nothing" },
+  { name: "vb-warning-suppression", scope: "file", severity: "medium", confidence: CONFIDENCE.QUALITY, pattern: /^[ \t]*#Disable[ \t]+Warning\b/gim, fix: "Fix the warning; where a suppression is genuinely right, say why on the line and re-enable it right after.", desc: "#Disable Warning instead of a fix" },
 ];
 
 // ── Text constructs (prose only): regex-detectable sentence/format tells ──

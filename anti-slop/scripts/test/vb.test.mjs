@@ -95,6 +95,31 @@ test("vb-rethrow-only-catch: a Catch that adds context or does work is NOT a fin
   assert.ok(!fires("vb-rethrow-only-catch", crlf("Try", "X()", "Catch ex As IOException", '  Throw New AppException("load failed", ex)', "End Try")));
 });
 
+// ── VB twins of the shared C#-reaching rules ─────────────────────────────────
+
+test("vb-dead-branch: If True/False, #If False, While False are findings; a real condition is not", () => {
+  for (const s of ["If True Then", "If False Then X()", "#If False Then", "ElseIf true Then", "While False", "Do While False", "Do Until True"]) {
+    assert.ok(fires("vb-dead-branch", crlf(s)), s);
+  }
+  assert.ok(!fires("vb-dead-branch", crlf("If TrueCount > 0 Then", "#If DEBUG Then", "While running", "' If True Then")));
+});
+
+test("vb-generic-naming: DoStuff / ProcessData are findings, a specific name is not", () => {
+  assert.ok(fires("vb-generic-naming", crlf("Private Sub DoStuff()")));
+  assert.ok(fires("vb-generic-naming", crlf("Public Function ProcessData(x As Integer) As Integer")));
+  assert.ok(!fires("vb-generic-naming", crlf("Private Sub DoStuffWithRecipe()", "Sub LoadRecipe()")));
+});
+
+test("vb-warning-suppression: #Disable Warning is a finding, #Enable is not", () => {
+  assert.ok(fires("vb-warning-suppression", crlf("#Disable Warning BC42024")));
+  assert.ok(!fires("vb-warning-suppression", crlf("#Enable Warning BC42024")));
+});
+
+test("C# and VB now agree on dead branches", () => {
+  assert.ok(scanContent("class A { void F() { if (true) { X(); } } }\n", "A.cs").some((v) => v.name === "dead-branch"));
+  assert.ok(fires("vb-dead-branch", crlf("If True Then", "X()", "End If")));
+});
+
 // ── Shared comment-slop rules reach VB comments ──────────────────────────────
 
 test("shared comment-slop rules fire on VB comments", () => {
