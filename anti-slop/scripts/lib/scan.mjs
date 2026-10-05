@@ -795,10 +795,13 @@ export function scanContent(content, filePath, opts = {}) {
   // collectSuppressed: the escape hatch blanks its line before matching, so a hatched
   // line simply contributes nothing, and the dashboard reports no suppressed VB findings.
   if (isVb) {
-    const view = vbCodeView(content);
+    const codeView = vbCodeView(content);
+    // `scope: "comment"` rules read only the comment text (hatched lines blanked).
+    const commentView = extractComments(content, true);
     for (const pat of VB_PATTERNS) {
       if (isTestFile && pat.skipInTests) continue;
       if (!fileGuardOk(pat, content)) continue;
+      const view = pat.scope === "comment" ? commentView : codeView;
       const re = freshGlobal(pat.pattern);
       let count = 0;
       let line = null;

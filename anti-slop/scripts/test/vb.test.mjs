@@ -122,6 +122,45 @@ test("vb-warning-suppression: #Disable Warning is a finding, #Enable is not", ()
   assert.ok(!fires("vb-warning-suppression", crlf("#Enable Warning BC42024")));
 });
 
+// ── Boolean busywork (Quality) vs a plain literal compare (Taste) ────────────
+
+test("vb-compare-of-comparison: a comparison compared to True/False again is a finding", () => {
+  for (const s of ["If (count > 0) = True Then X()", "If (a <> b) = False Then X()", "ok = (x IsNot Nothing) = True", "If x = True = True Then X()"]) {
+    assert.ok(fires("vb-compare-of-comparison", crlf(s)), s);
+  }
+  for (const s of ["If count > 0 Then X()", "If Directory.Exists(p) = False Then X()", "If Check(a, b) = True Then X()"]) {
+    assert.ok(!fires("vb-compare-of-comparison", crlf(s)), s);
+  }
+});
+
+test("vb-bool-ternary: If/IIf returning True/False is a finding, a real ternary is not", () => {
+  assert.ok(fires("vb-bool-ternary", crlf("ok = If(count > 0, True, False)")));
+  assert.ok(fires("vb-bool-ternary", crlf("ok = IIf(IsValid(x), False, True)")));
+  assert.ok(!fires("vb-bool-ternary", crlf("label = If(ok, \"Yes\", \"No\")", "If(ok) Then X()")));
+});
+
+test("vb-bool-assign-branch: If/Else assigning True/False to one variable is a finding", () => {
+  assert.ok(fires("vb-bool-assign-branch", crlf("If File.Exists(p) Then", "  result = True", "Else", "  result = False", "End If")));
+  assert.ok(fires("vb-bool-assign-branch", crlf("If x > 0 Then Me.ok = True Else Me.ok = False")));
+  assert.ok(!fires("vb-bool-assign-branch", crlf("If x > 0 Then", "  a = True", "Else", "  b = False", "End If")));
+  assert.ok(!fires("vb-bool-assign-branch", crlf("If x > 0 Then", "  Log(x)", "  ok = True", "Else", "  ok = False", "End If")));
+});
+
+test("vb-double-negation: Not Not / Not (x = False) are findings, a single Not is not", () => {
+  assert.ok(fires("vb-double-negation", crlf("If Not Not ready Then X()")));
+  assert.ok(fires("vb-double-negation", crlf("If Not (done = False) Then X()")));
+  assert.ok(!fires("vb-double-negation", crlf("If Not done Then X()", "If Not (a > b) Then X()")));
+});
+
+test("vb-narrating-comment: VB-shaped narration is a finding, a why-comment and Korean are not", () => {
+  for (const s of ["' Constructor", "' Check if the file exists", "' Re-throw the exception", "''' Processes the data.", "' Properties"]) {
+    assert.ok(fires("vb-narrating-comment", crlf(s, "X()")), s);
+  }
+  for (const s of ["' Constructor runs before the PLC is ready, so defer Connect", "' 생성자", "''' Processes the data from both PLC ports in arrival order.", "''' Checks whether the heat exchanger is included in the HSystem","Dim s = \"' Constructor\""]) {
+    assert.ok(!fires("vb-narrating-comment", crlf(s, "X()")), s);
+  }
+});
+
 test("C# and VB now agree on dead branches", () => {
   assert.ok(scanContent("class A { void F() { if (true) { X(); } } }\n", "A.cs").some((v) => v.name === "dead-branch"));
   assert.ok(fires("vb-dead-branch", crlf("If True Then", "X()", "End If")));
