@@ -156,6 +156,48 @@ test("comment markers inside VB strings are not comments", () => {
   assert.ok(!fires("placeholder-comment", crlf("Dim q = \"line1", "// TODO: implement\"")));
 });
 
+test("string masking keeps secret detection: sk- keys and base64 with / still fire, a path does not", () => {
+  assert.ok(fires("hardcoded-secret", crlf("Const ApiKey As String = \"sk-abcdefghijklmnop\"")));
+  assert.ok(fires("hardcoded-secret", crlf("Const Token As String = \"aGVsbG8vd29ybGQvZm9vYmFyYmF6cXV4/Q==\"")));
+  assert.ok(!fires("hardcoded-secret", crlf("Const Token As String = \"/abc123456\"")));
+});
+
+test("hardcoded-secret keeps its path, flag and color exclusions in VB strings", () => {
+  for (const v of ["/api/v1/token-2", "--password-file-1", "#ff00aa11", "../secrets/key_v1"]) {
+    assert.ok(!fires("hardcoded-secret", crlf(`Dim token As String = "${v}"`)), v);
+  }
+  assert.ok(fires("hardcoded-secret", crlf("Dim ApiKey As String = \"sk-proj-abcdefghijklmnop\"")));
+  assert.ok(fires("boilerplate-marker", crlf("Dim k = \"sk-xxx\"")));
+});
+
+test("English prose at the start of a multi-line string line does not end the string", () => {
+  for (const lead of ["For details see docs", "Return to the main menu", "Case closed", "If you can"]) {
+    const vs = scan(crlf("Dim s = \"x", `${lead} ' delve tapestry`, "\"", "Dim y = 1"));
+    assert.ok(!vs.some((v) => v.word === "delve"), `${lead}: ${JSON.stringify(vs)}`);
+  }
+});
+
+test("SelfTest.vb and IuserTest.vb are production files, not tests", () => {
+  const src = crlf("Const ApiKey As String = \"q8Zt3kLm9Xw2Pv7R\"");
+  for (const p of ["Psy/SelfTest.vb", "Psy/TestControl/IuserTest.vb"]) {
+    assert.ok(scanContent(src, p).some((v) => v.name === "hardcoded-secret"), p);
+  }
+});
+
+test("a multi-line string closing on a keyword-led line keeps later comments visible", () => {
+  const vs = scan(crlf("Dim s = \"first", "Return now\"", "' delve tapestry"));
+  assert.ok(vs.some((v) => v.word === "delve"), JSON.stringify(vs));
+});
+
+test("vb-bool-literal-compare: a named argument before the comparison still matches", () => {
+  assert.ok(fires("vb-bool-literal-compare", crlf("If Check(strict:=True) = True Then X()")));
+});
+
+test("upper-case .VB test files are test files", () => {
+  const src = crlf("Const ApiKey As String = \"q8Zt3kLm9Xw2Pv7R\"");
+  assert.ok(!scanContent(src, "Psy/ParserTests.VB").some((v) => v.name === "hardcoded-secret"));
+});
+
 test("adjacent empty handlers each count; a selective rethrow before a broader Catch is clean", () => {
   const three = crlf("Try", "X()", "Catch ex As IOException", "Catch ex As TimeoutException", "Catch ex As Exception", "End Try");
   assert.equal(find("vb-empty-catch", three).count, 3);

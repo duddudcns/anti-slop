@@ -112,9 +112,15 @@ function extractComments(content, isVb = false) {
 // string state carries from one line to the next. `bare` is the code with string contents
 // removed (quotes kept): the VB rules must not read `"a = True"` as a comparison. `code`
 // keeps string contents (hardcoded-secret needs them) but masks the comment markers
-// `/ # * -` inside strings to `_`, so `"// TODO: implement"` is not a placeholder comment.
+// `//`, `/*`, `--`, `#`, `*` inside strings to `_`, so `"// TODO: implement"` is not a
+// placeholder comment. A single `-` or `/` stays, so `"sk-..."` and base64 keys still match.
 const VB_COMMENT_CHARS = new Set(["'", "‘", "’"]);
-const VB_STATEMENT_START = /^\s*(?:#|(?:End|Sub|Function|Property|Try|Catch|Finally|Dim|If|ElseIf|Else|Return|For|Next|While|Do|Loop|Select|Case|Using|With|Private|Public|Protected|Friend|Shared|Overrides|Class|Module|Namespace|Imports)\b)/i;
+// Shared rules that key on a comment marker and so must not see markers inside strings.
+const COMMENT_MARKER_RULES = new Set(["placeholder-comment", "narrating-comment", "apologetic-comment", "deferral-comment", "banner-comment"]);
+// Only openers that do not read as English prose ("For details...", "Return to menu" are
+// common string text): directives, `End <block>`, declaration headers, Imports/Namespace,
+// and Try/Catch/Finally in their statement shapes.
+const VB_STATEMENT_START = /^\s*(?:#|End[ \t]+(?:Sub|Function|Property|Class|Module|Namespace|Try|If|Select|Using|With|While|Structure|Enum|Interface|Get|Set)\b|(?:(?:Private|Public|Protected|Friend|Shared|Overrides|Overridable|Partial|Async)[ \t]+)*(?:Sub|Function|Property|Class|Module|Structure|Enum|Interface)[ \t]+\w+[ \t]*(?:\(|$)|(?:Imports|Namespace)[ \t]+[\w.]+[ \t]*$|Try[ \t]*$|Finally[ \t]*$|Catch(?:[ \t]+\w+[ \t]+As\b|[ \t]*$))/i;
 function splitVbLines(content) {
   let inString = false;
   return content.split("\n").map((raw) => {
@@ -122,7 +128,10 @@ function splitVbLines(content) {
     // Recovery: one stray `"` (XML literal text, an unterminated `#Region "x`) would
     // otherwise hide every later comment and finding. A line that opens with a statement
     // keyword cannot be the inside of a string, and directives never continue a string.
-    if (inString && VB_STATEMENT_START.test(text)) inString = false;
+    // The line must also hold an even number of quotes, i.e. parse as a whole statement on
+    // its own; `Return now"` closing a real multi-line string keeps the string state. Known
+    // gap: a multi-line string whose continuation line itself reads as a statement.
+    if (inString && VB_STATEMENT_START.test(text) && (text.split('"').length - 1) % 2 === 0) inString = false;
     let bare = "";
     let code = "";
     // True at line start and after `:` until the next non-blank character.
@@ -130,9 +139,14 @@ function splitVbLines(content) {
     for (let i = 0; i < text.length; i++) {
       const ch = text[i];
       if (ch === '"') { inString = !inString; bare += ch; code += ch; atStatementStart = false; continue; }
-      if (inString) { code += "/#*-".includes(ch) ? "_" : ch; continue; }
+      if (inString) {
+        const pair = ch + (text[i + 1] || "");
+        if (pair === "//" || pair === "/*" || pair === "--") { code += "__"; i++; continue; }
+        code += ch === "#" || ch === "*" ? "_" : ch;
+        continue;
+      }
       if (VB_COMMENT_CHARS.has(ch) || (atStatementStart && /^REM\b/i.test(text.slice(i, i + 4)))) {
-        return { code, bare, comment: text.slice(i) };
+        return { code, raw: text.slice(0, i), bare, comment: text.slice(i) };
       }
       code += ch;
       if (ch === ":") atStatementStart = true;
@@ -140,18 +154,22 @@ function splitVbLines(content) {
       bare += ch;
     }
     if (/^\s*#/.test(text)) inString = false;
-    return { code, bare, comment: "" };
+    return { code, raw: text, bare, comment: "" };
   });
 }
 
 // ── VB.NET lines with each comment rewritten to a `//` comment (line count preserved) ──
 // `'''` XML doc comments and REM collapse to the same `// text`. Escape-hatched lines keep
 // their marker, so countLinePattern still skips them.
-function vbCommentNormalizedLines(content) {
+// `masked` picks the string-masked code (for the comment-marker rules) or the raw code (for
+// every other rule: hardcoded-secret's own exclusions for paths, `--flags` and `#colors`
+// must see the real string).
+function vbCommentNormalizedLines(content, masked = true) {
   const split = splitVbLines(content);
   return content.split("\n").map((l, i) => {
     if (ESCAPE_HATCH.test(l)) return l;
-    const { code, comment } = split[i];
+    const { comment } = split[i];
+    const code = masked ? split[i].code : split[i].raw;
     if (!comment) return code;
     return `${code}// ${comment.replace(/^(?:REM\b|['‘’]+)[ \t]*/i, "")}`;
   });
@@ -589,9 +607,10 @@ export function scanContent(content, filePath, opts = {}) {
   // Test/fixture files carry fake creds, example.com, and innerHTML scaffolding -- skip the
   // security / dummy-data patterns there so real findings are not drowned in test noise.
   // VB has no `.test.` suffix convention: tests live in `*.Tests` projects or `*Tests.vb`.
-  // Case-sensitive on purpose, so `Contest.vb` is not a test file.
+  // Case-sensitive and plural on purpose: `Contest.vb`, `SelfTest.vb` and the production
+  // interface `IuserTest.vb` are not test files.
   const isTestFile = /\.(test|spec)\.[mc]?[jt]sx?$|(^|\/)(__tests__|__mocks__|fixtures|e2e)\/|\.stories\.[mc]?[jt]sx?$/i.test(filePath)
-    || (isVb && /(^|[\\/])[^\\/]*\.Tests?[\\/]|Tests?\.vb$/.test(filePath));
+    || (isVb && /(^|[\\/])[^\\/]*\.Tests?[\\/]|Tests\.[vV][bB]$/.test(filePath));
   const config = loadProjectConfig();
   const allowedWords = new Set((config.allowedWords || []).map(w => w.toLowerCase()));
   const contentLower = content.toLowerCase();
@@ -719,6 +738,7 @@ export function scanContent(content, filePath, opts = {}) {
   // VB lines are rewritten so a `'`/REM comment reads as `//`: the shared comment-slop
   // rules (narrating, placeholder, deferral, apologetic, banner) key on C-family markers.
   const lines = isVb ? vbCommentNormalizedLines(content) : content.split("\n");
+  const vbRawLines = isVb ? vbCommentNormalizedLines(content, false) : null;
   if (isStyle) {
     for (const pat of DESIGN_PATTERNS) {
       if (!fileGuardOk(pat, content)) continue;
@@ -791,7 +811,8 @@ export function scanContent(content, filePath, opts = {}) {
     for (const pat of CODE_PATTERNS) {
       if (isTestFile && pat.skipInTests) continue;
       if (!fileGuardOk(pat, content)) continue;
-      const { count, line } = countLinePattern(lines, pat);
+      const patLines = isVb && !COMMENT_MARKER_RULES.has(pat.name) ? vbRawLines : lines;
+      const { count, line } = countLinePattern(patLines, pat);
       // Same gate as the design table: every code rule shipped before 2.1.0 declares no
       // mode and behaves exactly as the old `count > 0`, while `banner-comment` -- a Taste
       // note whose whole claim is "this file is divided by ASCII art" -- needs two.
