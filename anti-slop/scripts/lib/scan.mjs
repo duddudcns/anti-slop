@@ -232,11 +232,19 @@ function vbCodeView(content) {
   // implicit (VB 10+) is a line ending in a token that cannot end a statement.
   // A blank or comment-only next line (bare "") ends the run: that is a compile error after
   // ` _` anyway, and joining across it would glue two statements together.
+  // The run stops before the joined line would pass VB_MAX_LINE: a huge initializer or
+  // concatenated SQL then falls back to per-line handling instead of becoming one `_long_`
+  // line that no rule reads. Only the newest piece is tested, so joining stays linear.
   for (let i = 0; i < out.length; i++) {
     if (out[i] === "_hatched_") continue;
     let j = i;
-    while (j + 1 < out.length && out[j + 1].trim() !== "" && out[j + 1] !== "_hatched_" && VB_CONTINUES.test(out[i])) {
-      out[i] = `${out[i].replace(VB_EXPLICIT_CONTINUATION, "")} ${out[j + 1].trim()}`;
+    let tail = out[i];
+    while (
+      j + 1 < out.length && out[j + 1].trim() !== "" && out[j + 1] !== "_hatched_"
+      && VB_CONTINUES.test(tail) && out[i].length + out[j + 1].length < VB_MAX_LINE
+    ) {
+      tail = out[j + 1].trim();
+      out[i] = `${out[i].replace(VB_EXPLICIT_CONTINUATION, "")} ${tail}`;
       out[j + 1] = "";
       j++;
     }
@@ -247,7 +255,9 @@ function vbCodeView(content) {
   return out.map((l) => (l.length > VB_MAX_LINE ? "_long_" : l)).join("\n");
 }
 const VB_EXPLICIT_CONTINUATION = /[ \t]+_[ \t]*$/;
-const VB_CONTINUES = /(?:[ \t]_|,|\(|\{|&|\+|-|\*|\/|=|<>|<|>|:=|\b(?:AndAlso|OrElse|And|Or|Xor|Is|IsNot|Like|Mod))[ \t]*$/i;
+// `<` and `>` are left out on purpose: ~26,000 code lines in a 3,146-file VB corpus end in
+// `>` (attributes `<Assembly: ...>`, XML literals), and joining them glued the next statement.
+const VB_CONTINUES = /(?:[ \t]_|,|\(|\{|&|\+|-|\*|\/|=|<>|:=|\b(?:AndAlso|OrElse|And|Or|Xor|Is|IsNot|Like|Mod))[ \t]*$/i;
 
 // ── Blank any line carrying the escape-hatch marker (preserves line count) ──
 function stripEscapeHatchLines(content) {

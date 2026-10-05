@@ -231,6 +231,28 @@ test("continuation joining does not glue separate statements or bodies", () => {
   assert.equal(find("vb-dead-branch", crlf("Dim s = Join(a, _", "  b)", "If False Then X()"))?.line, 3);
 });
 
+test("continuation joining stays linear and does not hide slop inside long statements", () => {
+  const init = ["Dim t As Double() = {"].concat(Array.from({ length: 20000 }, (_, i) => `  ${i}.5,`), ["  0}"]);
+  const t0 = Date.now();
+  scan(crlf(...init));
+  assert.ok(Date.now() - t0 < 1000, `took ${Date.now() - t0}ms`);
+  const sql = ["Dim q = \"SELECT\" &"].concat(Array.from({ length: 150 }, (_, i) => `  \" c${i} = ${i},\" &`), ["  \"x\"", "ok = If(x > 0, True, False)"]);
+  assert.ok(fires("vb-bool-ternary", crlf(...sql)));
+  const buried = ["Dim r = Foo(a,"].concat(Array.from({ length: 150 }, () => "  bbbbbbbbbbbbbbbbbbbb,"), ["  If(x > 0, True, False))"]);
+  assert.ok(fires("vb-bool-ternary", crlf(...buried)));
+});
+
+test("attribute and XML lines ending in > are not continuations", () => {
+  const src = crlf("<Serializable>", "Public Class C", "  Sub F()", "    Try", "      X()", "    Catch", "    End Try", "  End Sub", "End Class");
+  assert.equal(find("vb-empty-catch", src)?.line, 6);
+  assert.ok(fires("vb-dead-branch", crlf("Dim d = <root/>", "If False Then X()")));
+});
+
+test("branch rules allow comments around Else and End If", () => {
+  assert.ok(fires("vb-bool-assign-branch", crlf("If a > 0 Then", "  ok = True", "  ' otherwise", "Else", "", "  ok = False", "  ' done", "End If")));
+  assert.ok(fires("vb-bool-return-branch", crlf("If a > 0 Then", "  Return True", "' no", "Else", "  Return False", "End If")));
+});
+
 test("C# and VB now agree on dead branches", () => {
   assert.ok(scanContent("class A { void F() { if (true) { X(); } } }\n", "A.cs").some((v) => v.name === "dead-branch"));
   assert.ok(fires("vb-dead-branch", crlf("If True Then", "X()", "End If")));
