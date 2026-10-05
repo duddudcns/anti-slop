@@ -21,7 +21,8 @@ function formatFindings(report, filePath) {
   if (kept.length === 0) return null;
   const lines = kept.slice(0, MAX_LISTED).map((v) => {
     const rule = v.name || v.word || v.phrase || v.type;
-    return `- line ${v.line ?? "?"} [${v.severity}] ${rule}: ${v.desc}`;
+    // One entry per rule: `line` is the first hit, `(Nx)` in desc is the total.
+    return `- first at line ${v.line ?? "?"} [${v.severity}] ${rule}: ${v.desc}`;
   });
   if (kept.length > MAX_LISTED) lines.push(`- ... ${kept.length - MAX_LISTED} more`);
   return `[anti-slop] ${path.basename(filePath)}: ${kept.length} finding(s). Fix the ones this edit introduced; pre-existing ones can be left.\n${lines.join("\n")}`;
@@ -34,6 +35,8 @@ function main() {
   if (!filePath || !CODE_EXTS.has(path.extname(filePath).toLowerCase()) || !fs.existsSync(filePath)) return;
   if (!fs.existsSync(SCANNER)) return;
   let out;
+  // cwd = the file's folder: fine while CODE_EXTS has no prose files. If prose is ever
+  // added, run from the project root so .anti-slop/config.json (prose scope) is found.
   try {
     out = execFileSync(process.execPath, [SCANNER, "scan", "--format", "json", "--fail-on", "none", filePath], {
       encoding: "utf8", timeout: 15000, cwd: path.dirname(filePath),

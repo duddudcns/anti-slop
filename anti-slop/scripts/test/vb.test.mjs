@@ -147,6 +147,8 @@ test("vb-bool-assign-branch: If/Else assigning True/False to one variable is a f
   assert.ok(fires("vb-bool-assign-branch", crlf("If File.Exists(p) Then", "  result = True", "Else", "  result = False", "End If")));
   assert.ok(fires("vb-bool-assign-branch", crlf("If x > 0 Then Me.ok = True Else Me.ok = False")));
   assert.ok(!fires("vb-bool-assign-branch", crlf("If x > 0 Then", "  a = True", "Else", "  b = False", "End If")));
+  assert.ok(!fires("vb-bool-assign-branch", crlf("If cb.IsChecked Then ok = True Else ok = False")));
+  assert.ok(!fires("vb-bool-assign-branch", crlf("If cb.IsChecked Then", "  ok = True", "Else", "  ok = False", "End If")));
   assert.ok(!fires("vb-bool-assign-branch", crlf("If x > 0 Then", "  Log(x)", "  ok = True", "Else", "  ok = False", "End If")));
 });
 
@@ -160,7 +162,8 @@ test("vb-narrating-comment: VB-shaped narration is a finding, a why-comment and 
   for (const s of ["' Check if the file exists", "' Re-throw the exception", "''' Processes the data."]) {
     assert.ok(fires("vb-narrating-comment", crlf(s, "X()")), s);
   }
-  for (const s of ["' Constructor", "' Properties", "' Constructor runs before the PLC is ready, so defer Connect","' 생성자", "''' Processes the data from both PLC ports in arrival order.", "''' Checks whether the heat exchanger is included in the HSystem","Dim s = \"' Constructor\""]) {
+  for (const s of ["' Constructor", "' Properties", "' Check if the PLC answered within 2s; the watchdog otherwise resets the line",
+    "' Increments the retry counter so the watchdog trips after 3 misses", "''' Gets the name.", "''' Sets the value.","' Constructor runs before the PLC is ready, so defer Connect","' 생성자", "''' Processes the data from both PLC ports in arrival order.", "''' Checks whether the heat exchanger is included in the HSystem","Dim s = \"' Constructor\""]) {
     assert.ok(!fires("vb-narrating-comment", crlf(s, "X()")), s);
   }
 });
