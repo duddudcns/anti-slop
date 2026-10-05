@@ -9,6 +9,7 @@ import {
   CODE_PATTERNS,
   TEXT_CONSTRUCTS,
   NATIVE_PATTERNS,
+  VB_PATTERNS,
   BANNED_WORDS,
   BANNED_PHRASES,
   CONFIDENCE_CLASSES,
@@ -18,7 +19,7 @@ const labels = loadLabels();
 const ROLES = new Set(["positive", "clean-control", "coverage-boundary"]);
 
 const VALID_RULE_IDS = new Set([
-  ...[...DESIGN_PATTERNS, ...CODE_PATTERNS, ...TEXT_CONSTRUCTS, ...NATIVE_PATTERNS].map((r) => r.name),
+  ...[...DESIGN_PATTERNS, ...CODE_PATTERNS, ...TEXT_CONSTRUCTS, ...NATIVE_PATTERNS, ...VB_PATTERNS].map((r) => r.name),
   ...BANNED_WORDS,
   ...BANNED_PHRASES,
   "emoji",

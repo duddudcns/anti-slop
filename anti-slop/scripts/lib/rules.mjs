@@ -427,7 +427,7 @@ export const CODE_PATTERNS = [
   // digits, a known vendor prefix, >=20 chars of base64/hex}. That keeps every real key
   // while dropping i18n copy ("Please enter your password"), lexer token kinds
   // (token: "punctuation"), validation messages, and env-indirection strings.
-  { name: "hardcoded-secret", severity: "high", confidence: CONFIDENCE.SMELL, skipInTests: true, pattern: /(?:\b|(?<=_))(?:(?:api|secret|access|private)[_-]?key(?:[_-]?(?:id|base))?|password|passwd|secret|token)\s*[:=]\s*['"](?!\/|https?:|\.\.?\/|var\(|--|#[0-9a-fA-F])(?=[^'"\s]{8,}['"])(?:(?=(?:[^'"]*[0-9]){3})|(?=[^'"]*[-_])(?=[^'"]*[A-Za-z])(?=[^'"]*[0-9])|(?=(?:sk-|pk-|ghp_|xox))|(?=[A-Za-z0-9+/=]{20,}['"]))[^'"\s]{8,}['"]/gi, fix: "Read it from the environment or a secrets manager, and rotate any value that reached a commit", desc: "Possible hardcoded credential" },
+  { name: "hardcoded-secret", severity: "high", confidence: CONFIDENCE.SMELL, skipInTests: true, pattern: /(?:\b|(?<=_))(?:(?:api|secret|access|private)[_-]?key(?:[_-]?(?:id|base))?|password|passwd|secret|token)(?:\s+As\s+String)?\s*[:=]\s*['"](?!\/|https?:|\.\.?\/|var\(|--|#[0-9a-fA-F])(?=[^'"\s]{8,}['"])(?:(?=(?:[^'"]*[0-9]){3})|(?=[^'"]*[-_])(?=[^'"]*[A-Za-z])(?=[^'"]*[0-9])|(?=(?:sk-|pk-|ghp_|xox))|(?=[A-Za-z0-9+/=]{20,}['"]))[^'"\s]{8,}['"]/gi, fix: "Read it from the environment or a secrets manager, and rotate any value that reached a commit", desc: "Possible hardcoded credential" },
   { name: "console-log-emoji", severity: "medium", confidence: CONFIDENCE.QUALITY, pattern: new RegExp(`console\\.log\\s*\\(\\s*['"][^\\n]*${EMOJI_ATOM}`, "gu"), fix: "Use a word for the status (`PASS`, `FAIL`, `WARNING`); a glyph in a log line outlives the session that printed it.", desc: "Emoji inside a console.log string (breaks log parsers, reads as generated)" },
   { name: "img-no-dimensions", severity: "medium", confidence: CONFIDENCE.HARD, pattern: /<img\s(?![^>]*(?:width|height))[^>]*>/gi, fix: "Give the image its intrinsic `width` and `height` (or an `aspect-ratio`) so the browser reserves the box before it loads.", desc: "<img> without width/height (causes CLS)" },
   { name: "useeffect-setstate", severity: "medium", confidence: CONFIDENCE.SMELL, pattern: /useEffect\s*\(\s*\(\s*\)\s*=>\s*\{[^}]*set[A-Z]\w*\s*\(/g, fix: "Derive the value during render instead of storing it; keep the effect for work that genuinely reaches outside React.", desc: "useEffect setting state (likely derived state)" },
@@ -507,6 +507,28 @@ export const CODE_PATTERNS = [
   // A Taste note at two or more: one ASCII rule is somebody's habit, a file divided by
   // them is 1990s formatting. A divider carrying real content is a comment, not a banner.
   { name: "banner-comment", severity: "low", confidence: CONFIDENCE.TASTE, mode: CONCENTRATION, minCount: 2, pattern: /^\s*(?:\/\/|#|\*|--)\s*[=\-*_~#]{10,}\s*$/gm, fix: "Delete the dividers; a file that needs them to stay navigable is a file asking to be split.", desc: "ASCII banner/divider comment" },
+];
+
+// ── VB.NET patterns (.vb only) ──
+// Matched against the WHOLE file rather than per line (`scope: "file"`), because the
+// defining VB tell -- an empty Catch -- spans lines: `Catch ex As Exception` and
+// `End Try` are separate statements. The scanner runs them over a code view of the file
+// with `'`/REM comments and escape-hatched lines blanked (line count preserved), so a
+// commented-out `' If x = True Then` is not a finding. These are slop rules (code that is
+// noisier or emptier than it needs to be), not correctness or security checks. A comment-only Catch body
+// counts as empty, the same call upstream `swallowed-error` makes for `catch {}` + `//`.
+export const VB_PATTERNS = [
+  { name: "vb-empty-catch", scope: "file", severity: "medium", confidence: CONFIDENCE.HARD, pattern: /^[ \t]*Catch\b[^\n]*\n(?:[ \t]*\n)*?[ \t]*(?:End[ \t]+Try|Finally)\b|\bCatch\b[^:\n]*:[ \t]*End[ \t]+Try\b/gim, fix: "Handle it, log it, or rethrow with `Throw`; a Catch that does nothing hides the failure from everyone downstream.", desc: "Empty VB Catch block (error swallowed)" },
+  // `If x = True Then` reads the boolean twice; `= False` / `<> True` hide a Not behind a
+  // comparison. Assignments (`done = True`) are not conditions and do not match, and the
+  // match stops at `Then` so a single-line If body (`If ok Then x.Visible = True`) is not one.
+  // WPF `ShowDialog()` returns Boolean? (Nothing on close), where `= True` is the idiom.
+  { name: "vb-bool-literal-compare", scope: "file", severity: "low", confidence: CONFIDENCE.QUALITY, pattern: /\b(?:If|ElseIf|While|Until|AndAlso|OrElse)\b(?:(?!\bThen\b)[^\n])*?(?<!\bShowDialog\([^()\n]*\)[ \t]*)(?:<>|=|\bIs(?:Not)?\b)[ \t]*(?:True|False)\b/gi, fix: "Test the boolean directly: `If done Then`, `If Not done Then`.", desc: "Boolean compared to a True/False literal" },
+  // The branch the condition already is: return the condition.
+  { name: "vb-bool-return-branch", scope: "file", severity: "low", confidence: CONFIDENCE.QUALITY, pattern: /^[ \t]*If\b[^\n]*\bThen[ \t]*\n[ \t]*Return[ \t]+(?:True|False)[ \t]*\n[ \t]*Else[ \t]*\n[ \t]*Return[ \t]+(?:True|False)[ \t]*\n[ \t]*End[ \t]+If\b/gim, fix: "Return the condition itself (`Return x > 0`), negated with Not if the branches are reversed.", desc: "If/Else that only returns True/False" },
+  // A Catch whose whole body is a rethrow does nothing but cost a stack frame, and
+  // `Throw ex` additionally resets the stack trace to this line.
+  { name: "vb-rethrow-only-catch", scope: "file", severity: "medium", confidence: CONFIDENCE.QUALITY, pattern: /^[ \t]*Catch\b(?:[ \t]+(\w+)[ \t]+As[ \t]+[\w.]+)?[ \t]*\n(?:[ \t]*\n)*?[ \t]*Throw(?:[ \t]+\1)?[ \t]*\n(?:[ \t]*\n)*?[ \t]*(?:End[ \t]+Try|Finally|Catch)\b/gim, fix: "Delete the Catch and let the exception propagate; if you must catch, add context and keep the stack with a bare `Throw`.", desc: "Catch that only rethrows" },
 ];
 
 // ── Text constructs (prose only): regex-detectable sentence/format tells ──
@@ -634,7 +656,8 @@ export const PROSE_EXTENSIONS = new Set([".md", ".mdx", ".txt", ".rst"]);
 // dialect live in scan.mjs (proseScopeFor).
 export const PROSE_SCOPES = Object.freeze(["user-facing", "all"]);
 export const DEFAULT_PROSE_SCOPE = "user-facing";
-export const CODE_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".rb", ".go", ".rs", ".java", ".cs", ".php", ".c", ".h", ".cpp", ".cc", ".hpp", ".kt", ".kts", ".swift", ".scala", ".m", ".mm", ".sh", ".bash", ".lua", ".dart", ".sql", ".r"]);
+export const CODE_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".rb", ".go", ".rs", ".java", ".cs", ".php", ".c", ".h", ".cpp", ".cc", ".hpp", ".kt", ".kts", ".swift", ".scala", ".m", ".mm", ".sh", ".bash", ".lua", ".dart", ".sql", ".r", ".vb"]);
+export const VB_EXTENSIONS = new Set([".vb"]);
 export const STYLE_EXTENSIONS = new Set([".css", ".scss", ".less", ".html", ".htm", ".jsx", ".tsx", ".vue", ".svelte"]);
 
 // Which surface each UI rule table is allowed to see. Design tells are Tailwind/CSS/DOM
