@@ -54,6 +54,18 @@ test("projectRoot walks up to the folder holding .anti-slop/ (so its config is r
   const file = join(root, "src", "deep", "M.vb");
   writeFileSync(file, "x");
   assert.equal(projectRoot(file), root);
+  // A nested repo below the config root does not hide the config.
+  mkdirSync(join(root, "src", ".git"));
+  assert.equal(projectRoot(file), root);
+});
+
+test("projectRoot falls back to the nearest .git, then the session cwd", () => {
+  const root = mkdtempSync(join(tmpdir(), "sloprepo-"));
+  mkdirSync(join(root, ".git"));
+  mkdirSync(join(root, "a"));
+  const file = join(root, "a", "M.vb");
+  writeFileSync(file, "x");
+  assert.equal(projectRoot(file), root);
 });
 
 test("hook stays silent on clean code, non-code files, and bad input", () => {
