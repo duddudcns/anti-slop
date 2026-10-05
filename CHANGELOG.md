@@ -7,7 +7,11 @@ All notable changes to the anti-slop plugin. Versions match `.claude-plugin/plug
 - VB line continuations: a statement split with a trailing ` _` or an implicit continuation
   (a line ending in `,` `(` `&` `+` `=` `AndAlso` `OrElse` ...) is joined onto its first line
   before the cross-line VB rules run; absorbed lines stay blank so line numbers hold.
-- The If/Else branch rules allow blank (or comment-only) lines after `Then`.
+  Joins stop before `VB_MAX_LINE`, so long initializers stay linear and per-line. `<`/`>` are
+  not continuation tokens (attribute and XML-literal lines end in `>`); `obj.Is` member access
+  is not the `Is` operator.
+- The If/Else branch rules allow blank (or comment-only) lines at every line boundary.
+- `vb-bool-literal-compare` no longer starts at an `If(` ternary or reads past `{`/`}`.
 
 ## 2.4.1-vb.4 (fork)
 
@@ -41,7 +45,7 @@ All notable changes to the anti-slop plugin. Versions match `.claude-plugin/plug
   `vb-bool-return-branch`, `vb-rethrow-only-catch`. `ShowDialog()`/`IsChecked` (Boolean?)
   comparisons, `:=` named arguments and selective rethrows before a broader Catch stay clean.
 - `hardcoded-secret` accepts VB `Name As String = "..."`; `*.Tests` projects and `*Tests.vb`
-  count as test files. Known gaps: line continuations, Boolean? locals.
+  count as test files. Known gap: Boolean? locals (line continuations: handled since vb.5).
 
 ## Unreleased
 

@@ -525,14 +525,14 @@ export const VB_PATTERNS = [
   // WPF `ShowDialog()` and `IsChecked` are Boolean? (Nothing on close / indeterminate),
   // where `= True` is the idiom. A Boolean? local still matches: a known limitation. The
   // scan also stops at `:`, so `While run : done = True` is not read as a comparison.
-  { name: "vb-bool-literal-compare", scope: "file", severity: "low", confidence: CONFIDENCE.TASTE, pattern: /\b(?:If|ElseIf|While|Until|AndAlso|OrElse)\b(?:(?!\bThen\b)(?:[^\n:]|:(?==)))*?(?<!\b(?:ShowDialog\((?:[^()\n]|\([^()\n]*\))*\)|IsChecked)[ \t]*)(?:<>|(?<!:)=|\bIs(?:Not)?\b)[ \t]*(?:True|False)\b/gi, fix: "Test the boolean directly: `If done Then`, `If Not done Then`.", desc: "Boolean compared to a True/False literal" },
+  { name: "vb-bool-literal-compare", scope: "file", severity: "low", confidence: CONFIDENCE.TASTE, pattern: /\b(?:If(?!\()|ElseIf|While|Until|AndAlso|OrElse)\b(?:(?!\bThen\b)(?:[^\n:{}]|:(?==)))*?(?<!\b(?:ShowDialog\((?:[^()\n]|\([^()\n]*\))*\)|IsChecked)[ \t]*)(?:<>|(?<!:)=|\bIs(?:Not)?\b)[ \t]*(?:True|False)\b/gi, fix: "Test the boolean directly: `If done Then`, `If Not done Then`.", desc: "Boolean compared to a True/False literal" },
   // The branch the condition already is: return the condition.
   { name: "vb-bool-return-branch", scope: "file", severity: "low", confidence: CONFIDENCE.QUALITY, pattern: /^[ \t]*If\b[^\n]*\bThen[ \t]*\n(?:[ \t]*\n)*[ \t]*Return[ \t]+(?:True|False)[ \t]*\n(?:[ \t]*\n)*[ \t]*Else[ \t]*\n(?:[ \t]*\n)*[ \t]*Return[ \t]+(?:True|False)[ \t]*\n(?:[ \t]*\n)*[ \t]*End[ \t]+If\b/gim, fix: "Return the condition itself (`Return x > 0`), with Not if the branches are reversed, or the literal if both agree.", desc: "If/Else that only returns True/False" },
   // A Catch whose whole body is a rethrow does nothing but cost a stack frame, and
   // `Throw ex` additionally resets the stack trace to this line. Only the last handler is
   // judged: a rethrow-only Catch followed by a broader Catch is selective (it keeps, say,
   // cancellation out of a fallback handler) and stays clean. The boundaries are lookaheads
-  // so adjacent handlers each count. Known gap: `_` / implicit line continuations.
+  // so adjacent handlers each count. Continued lines are joined first (scan.mjs vbCodeView).
   { name: "vb-rethrow-only-catch", scope: "file", severity: "medium", confidence: CONFIDENCE.QUALITY, pattern: /^[ \t]*Catch\b(?:[ \t]+(\w+)[ \t]+As[ \t]+[\w.]+)?[ \t]*\n(?:[ \t]*\n)*?[ \t]*Throw(?:[ \t]+\1)?[ \t]*\n(?:[ \t]*\n)*?(?=[ \t]*(?:End[ \t]+Try|Finally)\b)/gim, fix: "Delete the Catch and let the exception propagate; if you must catch, add context and keep the stack with a bare `Throw`.", desc: "Catch that only rethrows" },
   // VB twins of shared rules whose patterns only know C-family/Python syntax, so C# and VB
   // get the same coverage: dead-branch (`if (true)`), generic-naming (`function doStuff`),

@@ -248,6 +248,13 @@ test("attribute and XML lines ending in > are not continuations", () => {
   assert.ok(fires("vb-dead-branch", crlf("Dim d = <root/>", "If False Then X()")));
 });
 
+test("continuation edge cases: initializer members, member access, ^ and \\", () => {
+  assert.ok(!fires("vb-bool-literal-compare", crlf("Dim w As New Window With {", "  .Title = If(injected, \"a\", \"b\"),", "  .ShowActivated = False}")));
+  assert.equal(find("vb-dead-branch", crlf("Dim a = obj.Is", "If False Then X()"))?.line, 2);
+  assert.ok(fires("vb-bool-ternary", crlf("ok = If(n ^", "  2 > 0, True, False)")));
+  assert.ok(fires("vb-bool-ternary", crlf("ok = If(n \\", "  2 > 0, True, False)")));
+});
+
 test("branch rules allow comments around Else and End If", () => {
   assert.ok(fires("vb-bool-assign-branch", crlf("If a > 0 Then", "  ok = True", "  ' otherwise", "Else", "", "  ok = False", "  ' done", "End If")));
   assert.ok(fires("vb-bool-return-branch", crlf("If a > 0 Then", "  Return True", "' no", "Else", "  Return False", "End If")));

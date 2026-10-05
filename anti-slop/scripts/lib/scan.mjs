@@ -257,7 +257,8 @@ function vbCodeView(content) {
 const VB_EXPLICIT_CONTINUATION = /[ \t]+_[ \t]*$/;
 // `<` and `>` are left out on purpose: ~26,000 code lines in a 3,146-file VB corpus end in
 // `>` (attributes `<Assembly: ...>`, XML literals), and joining them glued the next statement.
-const VB_CONTINUES = /(?:[ \t]_|,|\(|\{|&|\+|-|\*|\/|=|<>|:=|\b(?:AndAlso|OrElse|And|Or|Xor|Is|IsNot|Like|Mod))[ \t]*$/i;
+// Keywords need no `.` before them: `obj.Is` / `x.Or` are member access, not operators.
+const VB_CONTINUES = /(?:[ \t]_|,|\(|\{|&|\+|-|\*|\/|\\|\^|=|<>|<<|>>|:=|(?<![.\w])(?:AndAlso|OrElse|And|Or|Xor|Is|IsNot|Like|Mod))[ \t]*$/i;
 
 // ── Blank any line carrying the escape-hatch marker (preserves line count) ──
 function stripEscapeHatchLines(content) {
