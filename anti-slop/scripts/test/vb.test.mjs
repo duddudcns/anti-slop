@@ -567,3 +567,8 @@ test("vb.7 review: sync-over-async is skipped in tests, the other Taste rules ar
   assert.ok(v.some((x) => x.name === "vb-debug-output"));
   assert.ok(v.some((x) => x.name === "vb-not-implemented"));
 });
+
+test("vb-sync-over-async: a Wait inside the delegate or in the next statement is NOT the Task's Wait", () => {
+  assert.ok(!fires("vb-sync-over-async", crlf("Task.Run(Sub() GetGate().Wait())")));
+  assert.ok(!fires("vb-sync-over-async", crlf("Task.Run(Sub() Work()) : GetGate().Wait()")));
+});

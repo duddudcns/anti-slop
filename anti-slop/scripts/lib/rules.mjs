@@ -566,9 +566,11 @@ export const VB_PATTERNS = [
   // were legitimate (WPF ConvertBack stubs, test harness blocking calls, deliberate debug
   // logging), so they show in /slop-check but never in the edit hook. `.Result` on a Task
   // is not covered (a regex cannot tell it from any other Result property), and a multi-line
-  // `Task.Run(Sub() ... End Sub).Wait()` is not joined into one line, so it is missed.
+  // `Task.Run(Sub() ... End Sub).Wait()` is not joined into one line, so it is missed. The
+  // Task call's parentheses are matched as balanced (3 nested levels), so a Wait inside the
+  // delegate or in the next `:` statement is not the Task's own Wait.
   { name: "vb-not-implemented", scope: "file", severity: "low", confidence: CONFIDENCE.TASTE, pattern: /\bThrow[ \t]+New[ \t]+(?:System\.)?NotImplementedException\b/gi, fix: "Implement it; for a member that must never be called (ConvertBack), throw NotSupportedException.", desc: "NotImplementedException stub" },
-  { name: "vb-sync-over-async", scope: "file", skipInTests: true, severity: "low", confidence: CONFIDENCE.TASTE, pattern: /\.GetAwaiter\(\)\.GetResult\b|\bTask\.(?:Delay|Run)\([^\n]*?\)\.Wait\(/gi, fix: "Await it (make the caller Async), or use Thread.Sleep for a plain delay.", desc: "Blocking on a Task (GetResult / Task.Delay(...).Wait())" },
+  { name: "vb-sync-over-async", scope: "file", skipInTests: true, severity: "low", confidence: CONFIDENCE.TASTE, pattern: /\.GetAwaiter\(\)\.GetResult\b|\bTask\.(?:Delay|Run)\((?:[^()\n]|\((?:[^()\n]|\((?:[^()\n]|\([^()\n]*\))*\))*\))*\)\.Wait\(/gi, fix: "Await it (make the caller Async), or use Thread.Sleep for a plain delay.", desc: "Blocking on a Task (GetResult / Task.Delay(...).Wait())" },
   { name: "vb-debug-output", scope: "file", severity: "low", confidence: CONFIDENCE.TASTE, pattern: /(?<![\w.])(?:System\.Diagnostics\.|System\.)?(?:Console\.Write(?:Line)?|Debug\.(?:Print|Write(?:Line)?)|Trace\.Write(?:Line)?)(?:[ \t]*\(|[ \t]+["\w])/gi, fix: "Route it through the app's logger, or delete it once the bug is found.", desc: "Console/Debug/Trace output statement" },
   { name: "vb-warning-suppression", scope: "file", severity: "medium", confidence: CONFIDENCE.QUALITY, pattern: /^[ \t]*#Disable[ \t]+Warning\b/gim, fix: "Fix the warning; where a suppression is genuinely right, say why on the line and re-enable it right after.", desc: "#Disable Warning instead of a fix" },
 ];
