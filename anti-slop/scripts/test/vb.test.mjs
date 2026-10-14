@@ -534,3 +534,36 @@ test("vb-debug-output: Console/Debug/Trace output statements are Taste notes", (
   assert.equal(v.count, 2);
   assert.ok(!fires("vb-debug-output", crlf("Logger.WriteLine(1)", "' Debug.Print(\"x\")")));
 });
+
+test("shared rules cover VB AI leftovers and hedging (why step 2 added no VB twin)", () => {
+  assert.ok(fires("chat-artifact", crlf("Sub F()", "  ' Certainly! Here's the updated code:", "End Sub")));
+  assert.ok(fires("placeholder-comment", crlf("Sub F()", "  ' TODO: implement", "End Sub")));
+  assert.ok(fires("deferral-comment", crlf("Sub F()", "  ' for now this is a simplification", "End Sub")));
+});
+
+test("vb.7 review: Count() rule is Taste, honours < 1 / <= 0, and skips compound or non-integer thresholds", () => {
+  assert.equal(find("vb-count-gt-zero", crlf("If xs.Count() > 0 Then", "End If")).confidence, "Taste note");
+  assert.ok(fires("vb-count-gt-zero", crlf("If xs.Count() < 1 Then", "End If")));
+  assert.ok(fires("vb-count-gt-zero", crlf("If xs.Count() <= 0 Then", "End If")));
+  assert.ok(fires("vb-count-gt-zero", crlf("If xs.Count() = 0 AndAlso y Then", "End If")));
+  assert.ok(fires("vb-count-gt-zero", crlf("ok = (xs.Count() > 0)")));
+  assert.ok(!fires("vb-count-gt-zero", crlf("If xs.Count() > 0 + offset Then", "End If")));
+  assert.ok(!fires("vb-count-gt-zero", crlf("If xs.Count() > 0.5 Then", "End If")));
+  assert.ok(!fires("vb-count-gt-zero", crlf("If xs.Count() > 0L Then", "End If")));
+});
+
+test("vb.7 review: qualified, single-line-If and paren-less forms are caught", () => {
+  assert.ok(fires("vb-not-implemented", crlf("Throw New System.NotImplementedException()")));
+  assert.equal(find("vb-debug-output", crlf("If x Then Debug.Print(1)", "Console.Write(1) : Debug.Print(2)", "System.Diagnostics.Debug.WriteLine(3)", "Debug.Print \"x\"")).count, 5);
+  assert.ok(!fires("vb-debug-output", crlf("MyLogger.Console.WriteLine(1)")));
+  assert.ok(fires("vb-sync-over-async", crlf("Task.Run(Function() A(B(C(1)))).Wait()")));
+  assert.ok(fires("vb-sync-over-async", crlf("Task.Run(Function() Go(1)).Wait(1000)")));
+});
+
+test("vb.7 review: sync-over-async is skipped in tests, the other Taste rules are not", () => {
+  const src = crlf("Task.Delay(1).Wait()", "Debug.Print(1)", "Throw New NotImplementedException()");
+  const v = scanContent(src, "Foo.Tests/BarTests.vb");
+  assert.ok(!v.some((x) => x.name === "vb-sync-over-async"));
+  assert.ok(v.some((x) => x.name === "vb-debug-output"));
+  assert.ok(v.some((x) => x.name === "vb-not-implemented"));
+});

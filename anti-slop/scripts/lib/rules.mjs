@@ -556,16 +556,20 @@ export const VB_PATTERNS = [
   // reason), and `''' Gets the X.` is the .NET property-doc convention, so it is not hit. Runs on comment
   // text only (`scope: "comment"`); English phrasing only, so a Korean comment is never hit.
   { name: "vb-narrating-comment", scope: "comment", severity: "low", confidence: CONFIDENCE.TASTE, pattern: /^[ \t]*'(?!')[ \t]*(?:Checks? (?:if|whether) the|Re-?throws? the exception|Creates? (?:a |the )?new instance|Reads? all (?:the )?lines|Increments? the|Decrements? the)\b[^\n,;\u0080-￿]{0,30}$|^[ \t]*'''[ \t]*<summary>[ \t]*(?:Processes|Handles|Checks|Creates|Initializes) the \w+\.?[ \t]*<\/summary>[ \t]*$|^[ \t]*'''[ \t]*(?:Processes|Handles|Checks|Creates|Initializes) the \w+\.?[ \t]*$/gim, fix: "Delete it, or say why the code does this rather than what it does.", desc: "Narrating VB comment (restates the code or the member name)" },
-  // LINQ Count() walks the whole sequence to answer "is there any"; `.Any()` or the
-  // collection's own Count property stops at once. Only the zero/one tests match:
-  // `Count() > 10` is a real count. (20/20 hits in a 2026-10-14 sample of local VB code.)
-  { name: "vb-count-gt-zero", scope: "file", severity: "low", confidence: CONFIDENCE.QUALITY, pattern: /\.Count\(\)[ \t]*(?:>[ \t]*0|<>[ \t]*0|>=[ \t]*1|=[ \t]*0)(?![\w.])/gi, fix: "Use `.Any()` (or `Not .Any()`), or the collection's `Count` property.", desc: "Count() compared with 0 instead of Any()" },
-  // The next three are Taste notes, not alerts: in a 2026-10-14 sample of local VB code most
-  // hits were legitimate (WPF ConvertBack stubs, test harness blocking calls, deliberate
-  // debug logging), so they show in /slop-check but never in the edit hook.
-  { name: "vb-not-implemented", scope: "file", severity: "low", confidence: CONFIDENCE.TASTE, pattern: /\bThrow[ \t]+New[ \t]+NotImplementedException\b/gi, fix: "Implement it; for a member that must never be called (ConvertBack), throw NotSupportedException.", desc: "NotImplementedException stub" },
-  { name: "vb-sync-over-async", scope: "file", skipInTests: true, severity: "low", confidence: CONFIDENCE.TASTE, pattern: /\.GetAwaiter\(\)\.GetResult\b|\bTask\.(?:Delay|Run)\((?:[^()\n]|\((?:[^()\n]|\([^()\n]*\))*\))*\)\.Wait\(\)/gi, fix: "Await it (make the caller Async), or use Thread.Sleep for a plain delay.", desc: "Blocking on a Task (GetResult / Task.Delay(...).Wait())" },
-  { name: "vb-debug-output", scope: "file", severity: "low", confidence: CONFIDENCE.TASTE, pattern: /^[ \t]*(?:Console\.Write(?:Line)?|Debug\.(?:Print|Write(?:Line)?)|Trace\.Write(?:Line)?)[ \t]*\(/gim, fix: "Route it through the app's logger, or delete it once the bug is found.", desc: "Console/Debug/Trace output statement" },
+  // Taste, not a defect: on a List(Of T) VB binds `.Count()` to the Count property (instance
+  // members beat extension methods), and Enumerable.Count is O(1) on any ICollection, so
+  // there is usually no cost; the existence test just reads less directly than `.Any()`.
+  // Only zero/one tests whose literal ends the comparison match: `Count() > 10` and
+  // `Count() > 0 + offset` are real counts.
+  { name: "vb-count-gt-zero", scope: "file", severity: "low", confidence: CONFIDENCE.TASTE, pattern: /\.Count\(\)[ \t]*(?:>[ \t]*0|<>[ \t]*0|>=[ \t]*1|=[ \t]*0|<[ \t]*1|<=[ \t]*0)(?=[ \t]*(?:\r?$|Then\b|AndAlso\b|OrElse\b|And\b|Or\b|Xor\b|\)|,|:))/gim, fix: "Say what you mean: `.Any()` / `Not .Any()`, or the collection's `Count` property.", desc: "Count() compared with 0 instead of Any()" },
+  // The next three are Taste notes too: in a 2026-10-14 sample of local VB code most hits
+  // were legitimate (WPF ConvertBack stubs, test harness blocking calls, deliberate debug
+  // logging), so they show in /slop-check but never in the edit hook. `.Result` on a Task
+  // is not covered (a regex cannot tell it from any other Result property), and a multi-line
+  // `Task.Run(Sub() ... End Sub).Wait()` is not joined into one line, so it is missed.
+  { name: "vb-not-implemented", scope: "file", severity: "low", confidence: CONFIDENCE.TASTE, pattern: /\bThrow[ \t]+New[ \t]+(?:System\.)?NotImplementedException\b/gi, fix: "Implement it; for a member that must never be called (ConvertBack), throw NotSupportedException.", desc: "NotImplementedException stub" },
+  { name: "vb-sync-over-async", scope: "file", skipInTests: true, severity: "low", confidence: CONFIDENCE.TASTE, pattern: /\.GetAwaiter\(\)\.GetResult\b|\bTask\.(?:Delay|Run)\([^\n]*?\)\.Wait\(/gi, fix: "Await it (make the caller Async), or use Thread.Sleep for a plain delay.", desc: "Blocking on a Task (GetResult / Task.Delay(...).Wait())" },
+  { name: "vb-debug-output", scope: "file", severity: "low", confidence: CONFIDENCE.TASTE, pattern: /(?<![\w.])(?:System\.Diagnostics\.|System\.)?(?:Console\.Write(?:Line)?|Debug\.(?:Print|Write(?:Line)?)|Trace\.Write(?:Line)?)(?:[ \t]*\(|[ \t]+["\w])/gi, fix: "Route it through the app's logger, or delete it once the bug is found.", desc: "Console/Debug/Trace output statement" },
   { name: "vb-warning-suppression", scope: "file", severity: "medium", confidence: CONFIDENCE.QUALITY, pattern: /^[ \t]*#Disable[ \t]+Warning\b/gim, fix: "Fix the warning; where a suppression is genuinely right, say why on the line and re-enable it right after.", desc: "#Disable Warning instead of a fix" },
 ];
 
