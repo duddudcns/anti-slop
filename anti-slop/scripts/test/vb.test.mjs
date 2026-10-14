@@ -260,6 +260,12 @@ test("branch rules allow comments around Else and End If", () => {
   assert.ok(fires("vb-bool-return-branch", crlf("If a > 0 Then", "  Return True", "' no", "Else", "  Return False", "End If")));
 });
 
+test("allOccurrences: comment-view and code-view rules each report their own line numbers", () => {
+  const vs = scanContent(crlf("Sub F()", "  ' Check if the file exists", "#Disable Warning BC42024", "End Sub"), "M.vb", { allOccurrences: true });
+  assert.deepEqual(vs.find((v) => v.name === "vb-narrating-comment")?.lines, [2]);
+  assert.deepEqual(vs.find((v) => v.name === "vb-warning-suppression")?.lines, [3]);
+});
+
 test("C# and VB now agree on dead branches", () => {
   assert.ok(scanContent("class A { void F() { if (true) { X(); } } }\n", "A.cs").some((v) => v.name === "dead-branch"));
   assert.ok(fires("vb-dead-branch", crlf("If True Then", "X()", "End If")));
