@@ -49,6 +49,27 @@ test("a finding added by the edit is 'introduced'; one already there is 'pre-exi
   assert.match(msg, /1 pre-existing finding\(s\)/);
 });
 
+test("the pre-existing list is shown once per file per session, then one line", () => {
+  const f = tmpFile("M.vb", crlf("Sub A()", ...EMPTY_CATCH, "End Sub"));
+  run("pre", f, "once");
+  writeFileSync(f, crlf("' a", "Sub A()", ...EMPTY_CATCH, "End Sub"));
+  assert.match(report(run("post", f, "once")), /line 5 vb-empty-catch/);
+  run("pre", f, "once");
+  writeFileSync(f, crlf("' b", "' a", "Sub A()", ...EMPTY_CATCH, "End Sub"));
+  const second = report(run("post", f, "once"));
+  assert.match(second, /listed earlier this session/);
+  assert.doesNotMatch(second, /vb-empty-catch/);
+});
+
+test("a stale snapshot (older than 10 minutes) is not used as this edit's baseline", () => {
+  const f = tmpFile("M.vb", crlf("Sub A()", "X()", "End Sub"));
+  run("pre", f, "stale");
+  const snap = readdirSync(SNAP_DIR).map((n) => join(SNAP_DIR, n)).find((p) => p.endsWith(".json") && JSON.parse(readFileSync(p, "utf8")).content?.includes("X()"));
+  writeFileSync(snap, JSON.stringify({ ...JSON.parse(readFileSync(snap, "utf8")), t: Date.now() - 11 * 60 * 1000 }));
+  writeFileSync(f, crlf("Sub A()", ...EMPTY_CATCH, "End Sub"));
+  assert.match(report(run("post", f, "stale")), /new vs pre-existing is unknown/);
+});
+
 test("lines inserted above an old finding do not make it look new", () => {
   const f = tmpFile("M.vb", crlf("Sub A()", ...EMPTY_CATCH, "End Sub"));
   run("pre", f);
@@ -63,7 +84,7 @@ test("a brand-new file reports everything as introduced; the snapshot is removed
   run("pre", f);
   writeFileSync(f, crlf("Sub A()", ...EMPTY_CATCH, "End Sub"));
   assert.match(report(run("post", f)), /introduced by this edit/);
-  assert.equal(readdirSync(SNAP_DIR).length, 0);
+  assert.equal(readdirSync(SNAP_DIR).filter((n) => n.endsWith(".json")).length, 0);
 });
 
 test("without a snapshot findings are unattributed, never called new", () => {
