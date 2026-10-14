@@ -491,3 +491,46 @@ test("VB rules never fire on other languages", () => {
   const cs = "class A { bool F(bool x) { if (x == true) { return true; } else { return false; } } }\n";
   assert.ok(!scanContent(cs, "A.cs").some((v) => String(v.name).startsWith("vb-")));
 });
+
+// ── step-2 rules (vb.7) ──────────────────────────────────────────────────────
+
+test("vb-count-gt-zero: Count() compared with zero is a finding", () => {
+  assert.ok(fires("vb-count-gt-zero", crlf("If items.Count() > 0 Then", "End If")));
+  assert.ok(fires("vb-count-gt-zero", crlf("ok = list.Count() <> 0")));
+  assert.ok(fires("vb-count-gt-zero", crlf("If xs.count()>=1 Then", "End If")));
+  assert.ok(fires("vb-count-gt-zero", crlf("If xs.Count() = 0 Then", "End If")));
+});
+
+test("vb-count-gt-zero: the Count property, other thresholds and comments are NOT findings", () => {
+  assert.ok(!fires("vb-count-gt-zero", crlf("If items.Count > 0 Then", "End If")));
+  assert.ok(!fires("vb-count-gt-zero", crlf("If items.Count() > 10 Then", "End If")));
+  assert.ok(!fires("vb-count-gt-zero", crlf("If items.Count() >= 10 Then", "End If")));
+  assert.ok(!fires("vb-count-gt-zero", crlf("' If items.Count() > 0 Then")));
+});
+
+test("vb-not-implemented: Throw New NotImplementedException is a Taste note", () => {
+  const v = find("vb-not-implemented", crlf("Sub F()", "  Throw New NotImplementedException()", "End Sub"));
+  assert.ok(v);
+  assert.equal(v.confidence, "Taste note");
+  assert.ok(!fires("vb-not-implemented", crlf("Throw New NotSupportedException()")));
+});
+
+test("vb-sync-over-async: GetAwaiter().GetResult() and Task.Delay/Run(...).Wait() are Taste notes", () => {
+  assert.ok(fires("vb-sync-over-async", crlf("Dim r = DoAsync().GetAwaiter().GetResult()")));
+  assert.ok(fires("vb-sync-over-async", crlf("Task.Delay(100).Wait()")));
+  assert.ok(fires("vb-sync-over-async", crlf("Task.Run(Function() Go(1)).Wait()")));
+  assert.equal(find("vb-sync-over-async", crlf("Task.Delay(100).Wait()")).confidence, "Taste note");
+});
+
+test("vb-sync-over-async: semaphore/event Wait() is NOT a finding", () => {
+  assert.ok(!fires("vb-sync-over-async", crlf("SendSemaphore.Wait()")));
+  assert.ok(!fires("vb-sync-over-async", crlf("go.Wait()")));
+});
+
+test("vb-debug-output: Console/Debug/Trace output statements are Taste notes", () => {
+  const v = find("vb-debug-output", crlf("Sub F()", "  Debug.Print(\"x\")", "  Console.WriteLine(1)", "End Sub"));
+  assert.ok(v);
+  assert.equal(v.confidence, "Taste note");
+  assert.equal(v.count, 2);
+  assert.ok(!fires("vb-debug-output", crlf("Logger.WriteLine(1)", "' Debug.Print(\"x\")")));
+});
