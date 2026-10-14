@@ -4,14 +4,17 @@ All notable changes to the anti-slop plugin. Versions match `.claude-plugin/plug
 
 ## 2.4.1-vb.7 (fork)
 
-- New VB rules. `vb-count-gt-zero` (Quality): `.Count() > 0` / `<> 0` / `>= 1` / `= 0`
-  instead of `.Any()`; 20/20 true hits in a sample of local VB code, so it alerts.
-- Taste notes (shown by /slop-check, never by the edit hook), kept low because most
-  sampled hits were legitimate: `vb-not-implemented` (Throw New NotImplementedException),
-  `vb-sync-over-async` (`.GetAwaiter().GetResult()`, `Task.Delay/Run(...).Wait()`; skipped in
-  tests), `vb-debug-output` (Console/Debug/Trace output statements).
+- New VB rules, all Taste notes (shown by /slop-check, never by the edit hook):
+  - `vb-count-gt-zero`: `.Count()` tested against 0/1 instead of `.Any()`. Not an alert: on a
+    List(Of T) VB binds `.Count()` to the Count property, so there is usually no cost.
+    Compound thresholds (`> 0 + offset`) and non-integer literals are skipped.
+  - `vb-not-implemented`: Throw New [System.]NotImplementedException.
+  - `vb-sync-over-async`: `.GetAwaiter().GetResult()`, `Task.Delay/Run(...).Wait(...)`; skipped in tests.
+  - `vb-debug-output`: Console/Debug/Trace output, including qualified, after `Then`/`:` and paren-less forms.
+- Most sampled hits in local VB code were legitimate (ConvertBack stubs, test harness
+  blocking, deliberate debug logging), which is why none of them alerts.
 - AI leftovers and hedging comments needed no VB rule: the shared chat-artifact,
-  placeholder-comment and deferral-comment rules already fire on .vb files.
+  placeholder-comment and deferral-comment rules already fire on .vb files (now pinned by a test).
 
 ## 2.4.1-vb.6 (fork)
 
