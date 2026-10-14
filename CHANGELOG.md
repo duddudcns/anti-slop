@@ -2,6 +2,16 @@
 
 All notable changes to the anti-slop plugin. Versions match `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `anti-slop/.claude-plugin/plugin.json`, the SKILL.md frontmatter, and `anti-slop/scripts/package.json` — all five are bumped together. (It was five, then four when 2.0.0 removed the MCP Server constructor, then five again when 2.2.1 brought the scanner's package.json under the same gate.)
 
+## 2.4.1-vb.6 (fork)
+
+- The hook splits findings into "introduced by this edit" (fix now) and "pre-existing in
+  this file" (clean up in a separate commit). A PreToolUse step snapshots the file before
+  the edit; the PostToolUse step scans the snapshot and the new content in-process and
+  compares every occurrence by its normalized line text, so a finding that only moved is not
+  new. Without a snapshot the report says new vs pre-existing is unknown.
+- `scanContent(..., { allOccurrences: true })` adds `lines` (one entry per occurrence) to
+  each finding. Default output is unchanged.
+
 ## 2.4.1-vb.5 (fork)
 
 - VB line continuations: a statement split with a trailing ` _` or an implicit continuation

@@ -1,77 +1,107 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-// The PostToolUse slop-scan hook shipped in hooks/: advisory, one file, Taste notes left out.
+// The Edit/Write slop hook shipped in hooks/: a PreToolUse snapshot plus a PostToolUse scan
+// that splits findings into "introduced by this edit" and "pre-existing". Advisory only.
 const here = dirname(fileURLToPath(import.meta.url));
 const HOOK = join(here, "..", "..", "hooks", "slop-scan-hook.cjs");
-const { formatFindings, projectRoot } = createRequire(import.meta.url)(HOOK);
+const { classify, projectRoot } = createRequire(import.meta.url)(HOOK);
+const SNAP_DIR = mkdtempSync(join(tmpdir(), "slopsnap-"));
 
-const runHook = (input) =>
-  spawnSync(process.execPath, [HOOK], { input: typeof input === "string" ? input : JSON.stringify(input), encoding: "utf8" });
+const run = (mode, filePath, session = "s1") =>
+  spawnSync(process.execPath, [HOOK, mode], {
+    input: JSON.stringify({ session_id: session, tool_name: "Edit", tool_input: { file_path: filePath } }),
+    encoding: "utf8",
+    env: { ...process.env, ANTI_SLOP_SNAP_DIR: SNAP_DIR },
+  });
+const report = (r) => (r.stdout ? JSON.parse(r.stdout).hookSpecificOutput.additionalContext : "");
 const tmpFile = (name, content) => {
   const p = join(mkdtempSync(join(tmpdir(), "slophook-")), name);
-  writeFileSync(p, content);
+  if (content !== undefined) writeFileSync(p, content);
   return p;
 };
+const crlf = (...l) => l.join("\r\n") + "\r\n";
+const EMPTY_CATCH = ["Try", "X()", "Catch ex As Exception", "End Try"];
 
-test("hooks.json registers the hook on Edit/Write via CLAUDE_PLUGIN_ROOT", () => {
+test("hooks.json registers pre on PreToolUse and post on PostToolUse via CLAUDE_PLUGIN_ROOT", () => {
   const cfg = JSON.parse(readFileSync(join(here, "..", "..", "hooks", "hooks.json"), "utf8"));
-  const entry = cfg.hooks.PostToolUse[0];
-  assert.match(entry.matcher, /Edit/);
-  assert.match(entry.hooks[0].command, /\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/slop-scan-hook\.cjs/);
+  assert.match(cfg.hooks.PreToolUse[0].hooks[0].command, /slop-scan-hook\.cjs" pre/);
+  assert.match(cfg.hooks.PostToolUse[0].hooks[0].command, /slop-scan-hook\.cjs" post/);
+  for (const ev of ["PreToolUse", "PostToolUse"]) assert.match(cfg.hooks[ev][0].matcher, /Edit/);
 });
 
-test("formatFindings drops Taste notes and keeps low-severity quality findings", () => {
-  const report = { files: [{ violations: [
-    { name: "banner-comment", confidence: "Taste note", severity: "low", line: 1, desc: "banner" },
-    { name: "vb-bool-return-branch", confidence: "Quality defect", severity: "low", line: 3, desc: "bool" },
-  ] }] };
-  const msg = formatFindings(report, "M.vb");
-  assert.match(msg, /vb-bool-return-branch/);
-  assert.doesNotMatch(msg, /banner-comment/);
-  assert.equal(formatFindings({ files: [{ violations: [report.files[0].violations[0]] }] }, "M.vb"), null);
-});
-
-test("hook reports a VB empty Catch as additionalContext and exits 0", () => {
-  const r = runHook({ tool_name: "Write", tool_input: { file_path: tmpFile("M.vb", "Sub F()\r\nTry\r\nX()\r\nCatch ex As Exception\r\nEnd Try\r\nEnd Sub\r\n") } });
+test("a finding added by the edit is 'introduced'; one already there is 'pre-existing'", () => {
+  const f = tmpFile("M.vb", crlf("Sub A()", ...EMPTY_CATCH, "End Sub"));
+  assert.equal(run("pre", f).status, 0);
+  writeFileSync(f, crlf("Sub A()", ...EMPTY_CATCH, "End Sub", "Sub B()", ...EMPTY_CATCH, "End Sub"));
+  const r = run("post", f);
   assert.equal(r.status, 0);
-  const out = JSON.parse(r.stdout);
-  assert.equal(out.hookSpecificOutput.hookEventName, "PostToolUse");
-  assert.match(out.hookSpecificOutput.additionalContext, /vb-empty-catch/);
+  const msg = report(r);
+  assert.match(msg, /1 finding\(s\) introduced by this edit/);
+  assert.match(msg, /line 10 .*vb-empty-catch/);
+  assert.match(msg, /pre-existing[\s\S]*line 4 vb-empty-catch/);
+  assert.match(msg, /1 pre-existing finding\(s\)/);
 });
 
-test("projectRoot walks up to the folder holding .anti-slop/ (so its config is read)", () => {
+test("lines inserted above an old finding do not make it look new", () => {
+  const f = tmpFile("M.vb", crlf("Sub A()", ...EMPTY_CATCH, "End Sub"));
+  run("pre", f);
+  writeFileSync(f, crlf("' header", "Imports System", "Sub A()", ...EMPTY_CATCH, "End Sub"));
+  const msg = report(run("post", f));
+  assert.doesNotMatch(msg, /introduced by this edit/);
+  assert.match(msg, /1 pre-existing finding\(s\)/);
+});
+
+test("a brand-new file reports everything as introduced; the snapshot is removed afterwards", () => {
+  const f = tmpFile("New.vb");
+  run("pre", f);
+  writeFileSync(f, crlf("Sub A()", ...EMPTY_CATCH, "End Sub"));
+  assert.match(report(run("post", f)), /introduced by this edit/);
+  assert.equal(readdirSync(SNAP_DIR).length, 0);
+});
+
+test("without a snapshot findings are unattributed, never called new", () => {
+  const f = tmpFile("M.vb", crlf("Sub A()", ...EMPTY_CATCH, "End Sub"));
+  const msg = report(run("post", f, "other-session"));
+  assert.match(msg, /new vs pre-existing is unknown/);
+  assert.doesNotMatch(msg, /introduced by this edit/);
+});
+
+test("fixing a finding while adding a different one counts the new one as introduced", () => {
+  const before = { v: { name: "vb-empty-catch", count: 1, line: 3, lines: [3] } };
+  const after = [{ name: "vb-empty-catch", count: 1, line: 7, lines: [7], severity: "medium", desc: "d" }];
+  const { added, kept } = classify(after, [before.v], "a\nb\nCatch ex As IOException\n\n\n\nCatch ex As Exception\n", "a\nb\nCatch ex As IOException\n");
+  assert.equal(added.length, 1);
+  assert.equal(kept.length, 0);
+});
+
+test("projectRoot walks up to the folder holding .anti-slop/config.json, over a nested .git", () => {
   const root = mkdtempSync(join(tmpdir(), "sloproot-"));
   mkdirSync(join(root, ".anti-slop"));
   writeFileSync(join(root, ".anti-slop", "config.json"), "{}");
-  mkdirSync(join(root, "src", "deep", ".anti-slop"), { recursive: true }); // registry-style folder, no config
+  mkdirSync(join(root, "src", "deep", ".anti-slop"), { recursive: true });
+  mkdirSync(join(root, "src", ".git"));
   const file = join(root, "src", "deep", "M.vb");
   writeFileSync(file, "x");
   assert.equal(projectRoot(file), root);
-  // A nested repo below the config root does not hide the config.
-  mkdirSync(join(root, "src", ".git"));
-  assert.equal(projectRoot(file), root);
 });
 
-test("projectRoot falls back to the nearest .git, then the session cwd", () => {
-  const root = mkdtempSync(join(tmpdir(), "sloprepo-"));
-  mkdirSync(join(root, ".git"));
-  mkdirSync(join(root, "a"));
-  const file = join(root, "a", "M.vb");
-  writeFileSync(file, "x");
-  assert.equal(projectRoot(file), root);
-});
-
-test("hook stays silent on clean code, non-code files, and bad input", () => {
-  assert.equal(runHook({ tool_input: { file_path: tmpFile("M.vb", "Sub F()\r\nX()\r\nEnd Sub\r\n") } }).stdout, "");
-  assert.equal(runHook({ tool_input: { file_path: tmpFile("notes.md", "we delve into the tapestry\n") } }).stdout, "");
-  const r = runHook("not json");
-  assert.equal(r.status, 0);
-  assert.equal(r.stdout, "");
+test("clean code, non-code files and bad input stay silent with exit 0", () => {
+  const clean = tmpFile("M.vb", crlf("Sub F()", "X()", "End Sub"));
+  run("pre", clean);
+  assert.equal(run("post", clean).stdout, "");
+  const md = tmpFile("notes.md", "we delve into the tapestry\n");
+  assert.equal(run("post", md).stdout, "");
+  for (const mode of ["pre", "post"]) {
+    const r = spawnSync(process.execPath, [HOOK, mode], { input: "not json", encoding: "utf8" });
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout, "");
+  }
+  assert.ok(!existsSync(join(SNAP_DIR, "missing")));
 });

@@ -332,6 +332,30 @@ function lineAtIndex(text, index) {
   return text.slice(0, index).split("\n").length;
 }
 
+// Every occurrence of a literal phrase, by line (phrases are matched with indexOf).
+function phraseLines(hay, phrase) {
+  const out = [];
+  let from = 0;
+  let idx;
+  while ((idx = hay.indexOf(phrase, from)) !== -1) {
+    out.push(lineAtIndex(hay, idx));
+    from = idx + phrase.length;
+  }
+  return out;
+}
+
+// Every match's 1-based line (one entry per match), for opts.allOccurrences.
+function allMatchLines(text, re) {
+  const g = freshGlobal(re);
+  const out = [];
+  let m;
+  while ((m = g.exec(text)) !== null) {
+    if (m[0] === "") { g.lastIndex++; continue; }
+    out.push(lineAtIndex(text, m.index));
+  }
+  return out;
+}
+
 function firstMatchLine(text, re) {
   const m = freshGlobal(re).exec(text);
   return m ? lineAtIndex(text, m.index) : null;
@@ -362,6 +386,7 @@ function countLinePattern(lines, pat) {
   const g = pat.classAll || pat.count ? null : globalize(pat.pattern);
   let count = 0;
   let line = null;
+  const occ = [];
   for (let i = 0; i < lines.length; i++) {
     const text = lines[i];
     if (ESCAPE_HATCH.test(text)) continue;
@@ -371,9 +396,10 @@ function countLinePattern(lines, pat) {
     else if (pat.count) hits = pat.count(text);
     else { const m = text.match(g); hits = m ? m.length : 0; }
     if (hits > 0 && line === null) line = i + 1;
+    for (let k = 0; k < hits; k++) occ.push(i + 1);
     count += hits;
   }
-  return { count, line };
+  return { count, line, occ };
 }
 
 // ── Suppressed-finding capture (opts.collectSuppressed) ──
@@ -550,6 +576,7 @@ function collectSuppressedViolations({ content, lines, vbRawLines, isProse, isCo
       suppressed.push({
         type: "banned-word", word, count,
         line: firstMatchLine(textToScan, BANNED_WORD_REGEXES.get(word)),
+        _occ: allMatchLines(textToScan, BANNED_WORD_REGEXES.get(word)),
         severity: lowConf ? "low" : "medium",
         confidence: BANNED_WORD_CONFIDENCE,
         fix: BANNED_WORD_FIX,
@@ -708,6 +735,7 @@ export function scanContent(content, filePath, opts = {}) {
         word,
         count,
         line: firstMatchLine(textToScan, BANNED_WORD_REGEXES.get(word)),
+        _occ: allMatchLines(textToScan, BANNED_WORD_REGEXES.get(word)),
         severity: lowConf ? "low" : "medium",
         confidence: BANNED_WORD_CONFIDENCE,
         fix: BANNED_WORD_FIX,
@@ -742,6 +770,7 @@ export function scanContent(content, filePath, opts = {}) {
         phrase,
         line: lineNum,
         count,
+        _occ: phraseLines(hay, phrase),
         severity: "medium",
         confidence: BANNED_PHRASE_CONFIDENCE,
         fix: BANNED_PHRASE_FIX,
@@ -764,6 +793,7 @@ export function scanContent(content, filePath, opts = {}) {
           name: pat.name,
           count,
           line: firstMatchLine(proseScan, pat.pattern),
+          _occ: allMatchLines(proseScan, pat.pattern),
           severity: pat.severity,
           confidence: pat.confidence,
           fix: pat.fix,
@@ -801,6 +831,7 @@ export function scanContent(content, filePath, opts = {}) {
       type: "emoji",
       count: emojiMatches.length,
       line: firstMatchLine(emojiHaystack, EMOJI_REGEX),
+      _occ: allMatchLines(emojiHaystack, EMOJI_REGEX),
       severity: emojiMatches.length > EMOJI_ESCALATE_COUNT ? "medium" : "low",
       confidence: EMOJI_CONFIDENCE,
       fix: EMOJI_FIX,
@@ -816,13 +847,14 @@ export function scanContent(content, filePath, opts = {}) {
   if (isStyle) {
     for (const pat of DESIGN_PATTERNS) {
       if (!fileGuardOk(pat, content)) continue;
-      const { count, line } = countLinePattern(lines, pat);
+      const { count, line, occ } = countLinePattern(lines, pat);
       if (meetsThreshold(pat, count)) {
         violations.push({
           type: "design-tell",
           name: pat.name,
           count,
           line,
+          _occ: occ,
           severity: resolveSeverity(pat.severity, count),
           confidence: pat.confidence,
           mode: pat.mode,
@@ -847,10 +879,13 @@ export function scanContent(content, filePath, opts = {}) {
       const re = freshGlobal(pat.pattern);
       let count = 0;
       let line = null;
+      const occ = [];
       let m;
       while ((m = re.exec(view)) !== null) {
         if (m[0] === "") { re.lastIndex++; continue; }
-        if (line === null) line = lineAtIndex(view, m.index + m[0].search(/\S/));
+        const at = lineAtIndex(view, m.index + m[0].search(/\S/));
+        if (line === null) line = at;
+        occ.push(at);
         count++;
       }
       if (meetsThreshold(pat, count)) {
@@ -859,6 +894,7 @@ export function scanContent(content, filePath, opts = {}) {
           name: pat.name,
           count,
           line,
+          _occ: occ,
           severity: resolveSeverity(pat.severity, count),
           confidence: pat.confidence,
           fix: pat.fix,
@@ -870,13 +906,14 @@ export function scanContent(content, filePath, opts = {}) {
   if (isNative) {
     for (const pat of NATIVE_PATTERNS) {
       if (!fileGuardOk(pat, content)) continue;
-      const { count, line } = countLinePattern(lines, pat);
+      const { count, line, occ } = countLinePattern(lines, pat);
       if (meetsThreshold(pat, count)) {
         violations.push({
           type: "native-tell",
           name: pat.name,
           count,
           line,
+          _occ: occ,
           severity: resolveSeverity(pat.severity, count),
           confidence: pat.confidence,
           mode: pat.mode,
@@ -892,7 +929,7 @@ export function scanContent(content, filePath, opts = {}) {
       if (isVb && VB_REPLACED_RULES.has(pat.name)) continue;
       if (!fileGuardOk(pat, content)) continue;
       const patLines = isVb && !COMMENT_MARKER_RULES.has(pat.name) ? vbRawLines : lines;
-      const { count, line } = countLinePattern(patLines, pat);
+      const { count, line, occ } = countLinePattern(patLines, pat);
       // Same gate as the design table: every code rule shipped before 2.1.0 declares no
       // mode and behaves exactly as the old `count > 0`, while `banner-comment` -- a Taste
       // note whose whole claim is "this file is divided by ASCII art" -- needs two.
@@ -902,6 +939,7 @@ export function scanContent(content, filePath, opts = {}) {
           name: pat.name,
           count,
           line,
+          _occ: occ,
           severity: resolveSeverity(pat.severity, count),
           confidence: pat.confidence,
           fix: pat.fix,
@@ -922,9 +960,12 @@ export function scanContent(content, filePath, opts = {}) {
     }));
   }
 
-  return isVb
+  const relabelled = isVb
     ? violations.map((v) => (VB_TASTE_RULES.has(v.name) ? { ...v, confidence: CONFIDENCE_TASTE } : v))
     : violations;
+  // Every occurrence's line is collected internally (`_occ`) but only exposed, as `lines`,
+  // under opts.allOccurrences, so the default output stays byte-identical.
+  return relabelled.map(({ _occ, ...v }) => (opts.allOccurrences && _occ ? { ...v, lines: _occ } : v));
 }
 
 // ── Score calculation ──
