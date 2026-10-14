@@ -8,7 +8,10 @@ All notable changes to the anti-slop plugin. Versions match `.claude-plugin/plug
   this file" (clean up in a separate commit). A PreToolUse step snapshots the file before
   the edit; the PostToolUse step scans the snapshot and the new content in-process and
   compares every occurrence by its normalized line text, so a finding that only moved is not
-  new. Without a snapshot the report says new vs pre-existing is unknown.
+  new. Without a snapshot (or with one older than 10 minutes, left by a failed edit) the
+  report says new vs pre-existing is unknown. The pre-existing list is shown in full once per
+  file per session, then as one line. Known limit: occurrences are matched by line text, so
+  fixing one `Catch ex As Exception` while adding an identical one elsewhere reads as no change.
 - `scanContent(..., { allOccurrences: true })` adds `lines` (one entry per occurrence) to
   each finding. Default output is unchanged.
 

@@ -17,6 +17,7 @@ const CODE_EXTS = new Set([".vb", ".cs", ".js", ".jsx", ".ts", ".tsx", ".mjs", "
 const SKIP_CONFIDENCE = "Taste note";
 const MAX_LISTED = 12;
 const MAX_SNAPSHOT_BYTES = 5 * 1024 * 1024;
+const SNAPSHOT_TTL_MS = 10 * 60 * 1000;
 const SCAN_LIB = process.env.ANTI_SLOP_SCAN_LIB || path.join(__dirname, "..", "scripts", "lib", "scan.mjs");
 const SNAP_DIR = process.env.ANTI_SLOP_SNAP_DIR || path.join(os.tmpdir(), "claude-anti-slop-snapshots");
 
@@ -91,7 +92,9 @@ const fmtLines = (lines) => {
 const fmtEntry = ({ v, lines, delta }) =>
   `- ${fmtLines(lines)} [${v.severity}] ${ruleKey(v)}: ${v.desc}${delta ? ` (+${delta} vs before)` : ""}`;
 
-function formatReport(fileName, added, kept, attributed) {
+// `keptListed`: the pre-existing list was already shown for this file in this session, so it
+// shrinks to one line instead of repeating on every edit.
+function formatReport(fileName, added, kept, attributed, keptListed = false) {
   const out = [];
   if (!attributed) {
     if (!kept.length) return null;
@@ -106,7 +109,9 @@ function formatReport(fileName, added, kept, attributed) {
     out.push(...added.slice(0, MAX_LISTED).map(fmtEntry));
     if (added.length > MAX_LISTED) out.push(`- ... ${added.length - MAX_LISTED} more`);
   }
-  if (kept.length) {
+  if (kept.length && keptListed) {
+    out.push(`${added.length ? "" : `[anti-slop] ${fileName}: `}${kept.length} pre-existing finding(s) in this file (listed earlier this session).`);
+  } else if (kept.length) {
     out.push(`${added.length ? "" : `[anti-slop] ${fileName}: `}${kept.length} pre-existing finding(s) in this file. Clean them up in a separate commit (leave other sessions' uncommitted lines alone; large restructures go to the todo list):`);
     const room = Math.max(3, MAX_LISTED - Math.min(added.length, MAX_LISTED));
     out.push(...kept.slice(0, room).map(({ v, lines }) => `- ${fmtLines(lines)} ${ruleKey(v)}`));
@@ -128,21 +133,29 @@ function targetFile(input) {
 function pre(input) {
   const filePath = targetFile(input);
   if (!filePath) return;
-  let snap = { exists: false };
+  const sp = snapPath(input, filePath);
+  // Drop any older snapshot first, so an early return below can never leave a stale one
+  // for the next post to compare against.
+  try { fs.unlinkSync(sp); } catch { /* none */ }
+  let snap = { exists: false, t: Date.now() };
   if (fs.existsSync(filePath)) {
     if (fs.statSync(filePath).size > MAX_SNAPSHOT_BYTES) return;
-    snap = { exists: true, content: fs.readFileSync(filePath, "utf8") };
+    snap = { exists: true, content: fs.readFileSync(filePath, "utf8"), t: Date.now() };
   }
   fs.mkdirSync(SNAP_DIR, { recursive: true });
-  fs.writeFileSync(snapPath(input, filePath), JSON.stringify(snap));
+  fs.writeFileSync(sp, JSON.stringify(snap));
 }
 
 async function post(input) {
   const filePath = targetFile(input);
-  if (!filePath || !fs.existsSync(filePath)) return;
+  if (!filePath) return;
   const sp = snapPath(input, filePath);
   let snap = null;
-  try { snap = JSON.parse(fs.readFileSync(sp, "utf8")); fs.unlinkSync(sp); } catch { snap = null; }
+  try { snap = JSON.parse(fs.readFileSync(sp, "utf8")); } catch { snap = null; }
+  try { fs.unlinkSync(sp); } catch { /* none */ }
+  // A snapshot older than this belongs to some earlier, failed edit: not this one's baseline.
+  if (snap && !(Date.now() - (snap.t || 0) < SNAPSHOT_TTL_MS)) snap = null;
+  if (!fs.existsSync(filePath)) return;
 
   // store.mjs captures process.cwd() at import time, so chdir before importing the scanner.
   process.chdir(projectRoot(filePath, input.cwd));
@@ -158,7 +171,9 @@ async function post(input) {
     const beforeText = snap.exists ? snap.content : "";
     const before = snap.exists ? visible(scanContent(beforeText, filePath, { allOccurrences: true })) : [];
     const { added, kept } = classify(after, before, afterText, beforeText);
-    msg = formatReport(path.basename(filePath), added, kept, true);
+    const listedMark = sp.replace(/\.json$/, ".listed");
+    msg = formatReport(path.basename(filePath), added, kept, true, fs.existsSync(listedMark));
+    if (kept.length) { try { fs.writeFileSync(listedMark, ""); } catch { /* advisory */ } }
   }
   if (!msg) return;
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: msg } }));
