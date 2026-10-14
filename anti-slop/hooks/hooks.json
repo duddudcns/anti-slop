@@ -1,5 +1,17 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/slop-scan-hook.cjs\" pre || exit 0"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
@@ -7,7 +19,7 @@
           {
             "type": "command",
             "timeout": 20,
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/slop-scan-hook.cjs\" || exit 0"
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/slop-scan-hook.cjs\" post || exit 0"
           }
         ]
       }
