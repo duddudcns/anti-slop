@@ -887,7 +887,8 @@ export function scanContent(content, filePath, opts = {}) {
     // `scope: "comment"` rules read only the comment text (hatched lines blanked).
     const commentView = extractComments(content, true)
       .split("\n").map((l) => (l.length > VB_MAX_LINE ? "" : l)).join("\n");
-    let lineOfView = null;
+    // One line indexer per view: the code view and the comment view are different texts.
+    const indexers = new Map();
     for (const pat of VB_PATTERNS) {
       if (isTestFile && pat.skipInTests) continue;
       if (!fileGuardOk(pat, content)) continue;
@@ -901,7 +902,7 @@ export function scanContent(content, filePath, opts = {}) {
         if (m[0] === "") { re.lastIndex++; continue; }
         const offset = m.index + m[0].search(/\S/);
         if (line === null) line = lineAtIndex(view, offset);
-        if (occOn) occ.push((lineOfView ||= lineIndexer(view))(offset));
+        if (occOn) occ.push((indexers.get(view) || indexers.set(view, lineIndexer(view)).get(view))(offset));
         count++;
       }
       if (meetsThreshold(pat, count)) {
