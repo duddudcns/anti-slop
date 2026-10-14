@@ -2,6 +2,17 @@
 
 All notable changes to the anti-slop plugin. Versions match `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `anti-slop/.claude-plugin/plugin.json`, the SKILL.md frontmatter, and `anti-slop/scripts/package.json` — all five are bumped together. (It was five, then four when 2.0.0 removed the MCP Server constructor, then five again when 2.2.1 brought the scanner's package.json under the same gate.)
 
+## 2.4.1-vb.7 (fork)
+
+- New VB rules. `vb-count-gt-zero` (Quality): `.Count() > 0` / `<> 0` / `>= 1` / `= 0`
+  instead of `.Any()`; 20/20 true hits in a sample of local VB code, so it alerts.
+- Taste notes (shown by /slop-check, never by the edit hook), kept low because most
+  sampled hits were legitimate: `vb-not-implemented` (Throw New NotImplementedException),
+  `vb-sync-over-async` (`.GetAwaiter().GetResult()`, `Task.Delay/Run(...).Wait()`; skipped in
+  tests), `vb-debug-output` (Console/Debug/Trace output statements).
+- AI leftovers and hedging comments needed no VB rule: the shared chat-artifact,
+  placeholder-comment and deferral-comment rules already fire on .vb files.
+
 ## 2.4.1-vb.6 (fork)
 
 - The hook splits findings into "introduced by this edit" (fix now) and "pre-existing in
