@@ -70,6 +70,39 @@ test("a stale snapshot (older than 10 minutes) is not used as this edit's baseli
   assert.match(report(run("post", f, "stale")), /new vs pre-existing is unknown/);
 });
 
+test("fixing one empty Catch and adding an identical one elsewhere: the new one is introduced", () => {
+  const f = tmpFile("M.vb", crlf("Sub A()", ...EMPTY_CATCH, "End Sub", "Sub B()", "  Y()", "End Sub"));
+  run("pre", f, "swap");
+  // One contiguous edit: A's Catch gets a body, B gains an identical empty Catch.
+  writeFileSync(f, crlf("Sub A()", "Try", "X()", "Catch ex As Exception", "  Log(ex)", "End Try", "End Sub", "Sub B()", ...EMPTY_CATCH, "End Sub"));
+  const msg = report(run("post", f, "swap"));
+  assert.match(msg, /1 finding\(s\) introduced by this edit/);
+});
+
+test("an untouched old finding below the edit keeps its pre-existing status", () => {
+  const f = tmpFile("M.vb", crlf("Sub B()", "  Y()", "End Sub", "Sub A()", ...EMPTY_CATCH, "End Sub"));
+  run("pre", f, "below");
+  writeFileSync(f, crlf("Sub B()", "  Y()", "  Z()", "End Sub", "Sub A()", ...EMPTY_CATCH, "End Sub"));
+  const msg = report(run("post", f, "below"));
+  assert.doesNotMatch(msg, /introduced by this edit/);
+  assert.match(msg, /1 pre-existing/);
+});
+
+test("overlapping calls to the same file keep separate baselines via tool_use_id", () => {
+  const f = tmpFile("M.vb", crlf("Sub A()", "X()", "End Sub"));
+  const call = (mode, id) => spawnSync(process.execPath, [HOOK, mode], {
+    input: JSON.stringify({ session_id: "ov", tool_use_id: id, tool_input: { file_path: f } }),
+    encoding: "utf8", env: { ...process.env, ANTI_SLOP_SNAP_DIR: SNAP_DIR },
+  });
+  call("pre", "A");
+  writeFileSync(f, crlf("Sub A()", ...EMPTY_CATCH, "End Sub"));
+  call("pre", "B");
+  const a = call("post", "A");
+  assert.match(report(a), /introduced by this edit/);
+  const b = call("post", "B");
+  assert.doesNotMatch(report(b), /unknown/);
+});
+
 test("lines inserted above an old finding do not make it look new", () => {
   const f = tmpFile("M.vb", crlf("Sub A()", ...EMPTY_CATCH, "End Sub"));
   run("pre", f);

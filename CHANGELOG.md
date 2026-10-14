@@ -10,8 +10,11 @@ All notable changes to the anti-slop plugin. Versions match `.claude-plugin/plug
   compares every occurrence by its normalized line text, so a finding that only moved is not
   new. Without a snapshot (or with one older than 10 minutes, left by a failed edit) the
   report says new vs pre-existing is unknown. The pre-existing list is shown in full once per
-  file per session, then as one line. Known limit: occurrences are matched by line text, so
-  fixing one `Catch ex As Exception` while adding an identical one elsewhere reads as no change.
+  file per session, then as one line; counts are occurrences. Lines outside the edited
+  region map back to their old numbers; inside it, occurrences fall back to line-text matching
+  (known limit: one Write that both fixes and re-adds an identical line inside one region).
+  Snapshots are keyed by tool_use_id when the harness sends it, and the default scan stays
+  linear (occurrences are collected only under allOccurrences).
 - `scanContent(..., { allOccurrences: true })` adds `lines` (one entry per occurrence) to
   each finding. Default output is unchanged.
 

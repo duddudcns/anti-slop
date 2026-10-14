@@ -332,13 +332,27 @@ function lineAtIndex(text, index) {
   return text.slice(0, index).split("\n").length;
 }
 
+// index -> 1-based line in O(log n): newline offsets are computed once per text. Used for
+// opts.allOccurrences, where calling lineAtIndex per match would be quadratic.
+function lineIndexer(text) {
+  const nl = [];
+  for (let i = text.indexOf("\n"); i !== -1; i = text.indexOf("\n", i + 1)) nl.push(i);
+  return (index) => {
+    let lo = 0;
+    let hi = nl.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (nl[mid] < index) lo = mid + 1; else hi = mid; }
+    return lo + 1;
+  };
+}
+
 // Every occurrence of a literal phrase, by line (phrases are matched with indexOf).
 function phraseLines(hay, phrase) {
+  const lineOf = lineIndexer(hay);
   const out = [];
   let from = 0;
   let idx;
   while ((idx = hay.indexOf(phrase, from)) !== -1) {
-    out.push(lineAtIndex(hay, idx));
+    out.push(lineOf(idx));
     from = idx + phrase.length;
   }
   return out;
@@ -346,12 +360,13 @@ function phraseLines(hay, phrase) {
 
 // Every match's 1-based line (one entry per match), for opts.allOccurrences.
 function allMatchLines(text, re) {
+  const lineOf = lineIndexer(text);
   const g = freshGlobal(re);
   const out = [];
   let m;
   while ((m = g.exec(text)) !== null) {
     if (m[0] === "") { g.lastIndex++; continue; }
-    out.push(lineAtIndex(text, m.index));
+    out.push(lineOf(m.index));
   }
   return out;
 }
@@ -576,7 +591,6 @@ function collectSuppressedViolations({ content, lines, vbRawLines, isProse, isCo
       suppressed.push({
         type: "banned-word", word, count,
         line: firstMatchLine(textToScan, BANNED_WORD_REGEXES.get(word)),
-        _occ: allMatchLines(textToScan, BANNED_WORD_REGEXES.get(word)),
         severity: lowConf ? "low" : "medium",
         confidence: BANNED_WORD_CONFIDENCE,
         fix: BANNED_WORD_FIX,
@@ -713,6 +727,7 @@ export function scanContent(content, filePath, opts = {}) {
   const config = loadProjectConfig();
   const allowedWords = new Set((config.allowedWords || []).map(w => w.toLowerCase()));
   const contentLower = content.toLowerCase();
+  const occOn = Boolean(opts.allOccurrences);
 
   // Prose scans the author's own text with noise stripped; code scans comment lines.
   const proseScan = isProse ? stripProseNoise(content) : null;
@@ -735,7 +750,7 @@ export function scanContent(content, filePath, opts = {}) {
         word,
         count,
         line: firstMatchLine(textToScan, BANNED_WORD_REGEXES.get(word)),
-        _occ: allMatchLines(textToScan, BANNED_WORD_REGEXES.get(word)),
+        _occ: occOn && allMatchLines(textToScan, BANNED_WORD_REGEXES.get(word)),
         severity: lowConf ? "low" : "medium",
         confidence: BANNED_WORD_CONFIDENCE,
         fix: BANNED_WORD_FIX,
@@ -770,7 +785,7 @@ export function scanContent(content, filePath, opts = {}) {
         phrase,
         line: lineNum,
         count,
-        _occ: phraseLines(hay, phrase),
+        _occ: occOn && phraseLines(hay, phrase),
         severity: "medium",
         confidence: BANNED_PHRASE_CONFIDENCE,
         fix: BANNED_PHRASE_FIX,
@@ -793,7 +808,7 @@ export function scanContent(content, filePath, opts = {}) {
           name: pat.name,
           count,
           line: firstMatchLine(proseScan, pat.pattern),
-          _occ: allMatchLines(proseScan, pat.pattern),
+          _occ: occOn && allMatchLines(proseScan, pat.pattern),
           severity: pat.severity,
           confidence: pat.confidence,
           fix: pat.fix,
@@ -831,7 +846,7 @@ export function scanContent(content, filePath, opts = {}) {
       type: "emoji",
       count: emojiMatches.length,
       line: firstMatchLine(emojiHaystack, EMOJI_REGEX),
-      _occ: allMatchLines(emojiHaystack, EMOJI_REGEX),
+      _occ: occOn && allMatchLines(emojiHaystack, EMOJI_REGEX),
       severity: emojiMatches.length > EMOJI_ESCALATE_COUNT ? "medium" : "low",
       confidence: EMOJI_CONFIDENCE,
       fix: EMOJI_FIX,
@@ -872,6 +887,7 @@ export function scanContent(content, filePath, opts = {}) {
     // `scope: "comment"` rules read only the comment text (hatched lines blanked).
     const commentView = extractComments(content, true)
       .split("\n").map((l) => (l.length > VB_MAX_LINE ? "" : l)).join("\n");
+    let lineOfView = null;
     for (const pat of VB_PATTERNS) {
       if (isTestFile && pat.skipInTests) continue;
       if (!fileGuardOk(pat, content)) continue;
@@ -883,9 +899,9 @@ export function scanContent(content, filePath, opts = {}) {
       let m;
       while ((m = re.exec(view)) !== null) {
         if (m[0] === "") { re.lastIndex++; continue; }
-        const at = lineAtIndex(view, m.index + m[0].search(/\S/));
-        if (line === null) line = at;
-        occ.push(at);
+        const offset = m.index + m[0].search(/\S/);
+        if (line === null) line = lineAtIndex(view, offset);
+        if (occOn) occ.push((lineOfView ||= lineIndexer(view))(offset));
         count++;
       }
       if (meetsThreshold(pat, count)) {
