@@ -37,4 +37,12 @@ Claude Code plugin that catches agentic-dev shortcomings (security, accessibilit
 - Everything under `anti-slop/` SHIPS. The marketplace `source` is `./anti-slop` and `claude plugin update` copies that directory verbatim into every installer's cache, so a file put there for maintainer convenience is distribution. Maintainer-only material (local paths, private repo names, session or memory-system identifiers, executed work orders) belongs at the repo root or outside the repo; only docs written for a public reader go inside `anti-slop/docs/`. Before a release, grep the SHIPPED subtree (`git ls-files -- anti-slop/`), not just the repo, and note that `git grep -E` silently ignores `\b`, so hygiene patterns need explicit character classes.
 - The corpus is the single owner of its fixtures; ui-craft's `tests/corpus/` is a downstream view. Per-item ownership across the three repos is in `anti-slop/docs/rankings-refresh.md` (Downstream sync). Fixture roles are `positive`, `clean-control`, and `coverage-boundary` (plants a real tell this scanner has no rule for -- never cite one as evidence the tell is absent).
 - `store.mjs` captures `process.cwd()` at import time; tests needing a different project dir must spawn a child node process (see the allowedWords test).
-- Serena: `activate_project /Users/mize/Claude/plugins/anti-slop`. `.serena/` is gitignored, so memories are local to each clone: run `onboarding` when a session needs them and `list_memories` shows none.
+
+## Release and maintainer notes
+
+Project notes live in this file. Serena was retired on 2026-10-09; the untracked `.serena/memories/` notes it left repeated this file, apart from the points below.
+
+- Release: the five version spots plus a CHANGELOG entry, focused commits, an annotated tag `vX.Y.Z`, then push `master` and the tag. Regenerate `anti-slop/scripts/package-lock.json` with `npm install --package-lock-only --offline`; never hand-edit it.
+- `test/dogfood.test.mjs` pins every shipped `.md` file at zero findings. This file carries one known em-dash-density finding, so measure it before and after an edit rather than expecting zero.
+- GitHub push protection scans fixture values: a synthetic secret must not copy a vendor key format (a 24-character `sk_live_` value was rejected in 2.2.2).
+- Rankings refresh is quarterly. `anti-slop/docs/rankings-refresh.md` is the runbook, and `empirical-rankings.md` frontmatter carries `last-refreshed` and `next-due`.
