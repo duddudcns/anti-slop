@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Field notes</title>
+<style>
+  :root { --radius: 12px; }
+  body { margin: 0; background: #ffffff; color: #1f2937; font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+  main { max-width: 40rem; margin: 0 auto; padding: 2rem 1rem; display: grid; gap: 1rem; }
+  .tip { border-radius: var(--radius); border-left: 4px solid oklch(0.52 0.1 180); background: oklch(0.97 0.01 180); padding: 1rem; }
+  .quote { border-inline-start: 3px solid oklch(0.5 0.12 160); padding: 0 1rem; margin: 0; }
+  .feature { position: relative; border-radius: var(--radius); padding: 1rem 1rem 1rem 1.5rem; background: #f8fafc; }
+  .feature::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: oklch(0.6 0.15 60); }
+  .panel { border-radius: var(--radius); box-shadow: inset 4px 0 0 oklch(0.5 0.13 240); padding: 1rem; background: #f8fafc; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Field notes</h1>
+  <div class="tip">Water the beds before nine; the soil holds it through the afternoon.</div>
+  <blockquote class="quote">The second planting always comes up faster.</blockquote>
+  <div class="feature">Seed trays go back on the north shelf.</div>
+  <div class="panel">Frost is forecast for Saturday night.</div>
+  <div class="rounded-xl border-l-4 border-teal-600 p-4">Compost turned on Monday.</div>
+</main>
+</body>
+</html>

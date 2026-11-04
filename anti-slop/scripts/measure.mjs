@@ -19,6 +19,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { scanContent } from "./lib/scan.mjs";
+import { findDesignMd, readDesignSystem } from "./lib/design-detect.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const CORPUS_DIR = join(__dirname, "test", "corpus");
@@ -53,7 +54,9 @@ function scanLabeled(entry, corpusDir) {
   // scanner behavior for that sample -- exactly like a real project file would. The
   // prose fixtures are labeled tells, so they are scanned under prose scope `all`: the
   // measurement is of the rules, and the user-facing default is a project policy.
-  const violations = scanContent(content, entry.file, { proseScope: "all" });
+  // A fixture under a directory with its own DESIGN.md is scanned with it, as the CLI would.
+  const designSystem = readDesignSystem(findDesignMd(absPath));
+  const violations = scanContent(content, entry.file, { proseScope: "all", designSystem });
   const fired = new Set(violations.map(ruleName));
   const expected = new Set(expectedIds(entry));
   const tp = [...fired].filter((r) => expected.has(r));

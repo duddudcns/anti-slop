@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Customers</title>
+<style>
+  body { margin: 0; background: #ffffff; color: #1f2937; font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+  main { max-width: 48rem; margin: 0 auto; padding: 2rem 1rem; }
+  .rail { display: flex; gap: 3rem; overflow-x: auto; scroll-snap-type: x mandatory; }
+  .rail img { scroll-snap-align: start; }
+  @media (prefers-reduced-motion: no-preference) {
+    .intro { animation: slide-in 400ms ease-out both; }
+    .notice { animation: rise 600ms ease-out both; }
+  }
+  @keyframes slide-in {
+    from { transform: translateX(-20%); }
+    to { transform: translateX(0); }
+  }
+  @keyframes rise {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1 class="intro">Used by these teams</h1>
+  <p class="notice">Harbour Freight moved its dispatch board here in March.</p>
+  <div class="rail">
+    <img src="logo-harbour.svg" alt="Harbour Freight" width="120" height="32">
+    <img src="logo-fieldline.svg" alt="Fieldline" width="120" height="32">
+    <img src="logo-copperkettle.svg" alt="Copper Kettle" width="120" height="32">
+  </div>
+</main>
+</body>
+</html>

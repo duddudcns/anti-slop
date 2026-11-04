@@ -108,6 +108,10 @@ Options:
 
 Exit codes: `0` clean or below the `--fail-on` threshold, `1` findings at or above the threshold, `2` usage error or unreadable file. The CLI takes files only, with no glob or directory recursion, so compose it with your own file list as in the `git diff` example above.
 
+Output: the report goes to stdout, as text or as one JSON object with `--format json`, so it pipes cleanly. Coverage notes go to stderr in text mode and into the JSON `coverage` array (`[{ "note", "files" }]`). A note names what a static scan of that file type cannot see: on a component file (`.tsx`, `.vue` and kin) the contrast and type rules read declared CSS, inline styles and CSS-in-JS only, so Tailwind utilities and stylesheets in other files are not resolved; on a stylesheet the markup rules do not apply; on a non-UI code file the design rules do not run. `--quiet` drops the notes along with the report.
+
+For a CI gate, `--fail-on medium` keeps the lowest tier (near-bar contrast, the reading-mechanics rules, bounce easing) in the report without failing the build. The default stays `any`, so an existing gate keeps its behaviour.
+
 What a green scan does and does not mean: the scanner runs the part of the catalog a regex can decide, and that is a strict subset. Reachable SQL injection, N+1 queries, missing timeouts, sentence rhythm, and over-engineering are all in the reference catalogs and none of them are scanner rules, so a passing `scan` is a floor rather than a security review. A skipped prose file is not a scanned one: under the default prose scope, markdown and text files outside `userFacingProse` are reported as skipped and contribute nothing. The skill and the `slop-detector` agent read the full catalogs; the coverage matrix in `anti-slop/skills/anti-slop/references/empirical-rankings.md` records which rules sit in which layer.
 
 #### Deliberate exceptions
@@ -117,6 +121,14 @@ A line marked `anti-slop-allow: <reason>` (or `unslop-ignore`) is exempt from ev
 ```js
 const DEMO_KEY = "sk-test-0000"; // anti-slop-allow: fixture for the auth test
 ```
+
+To waive one rule and keep the others reading the line, name it before ` -- ` and the reason:
+
+```html
+<h1 class="bg-clip-text text-transparent bg-gradient-to-r from-amber-600 to-red-700"><!-- anti-slop-allow: gradient-text -- wordmark from the identity guide -->Halcyon</h1>
+```
+
+Every id before the ` -- ` must be a real rule id; a waiver that names an unknown one suppresses nothing, and the CLI prints a note on stderr naming the id. The prose rules (banned words and phrases, text constructs, em-dash density, emoji) treat any marker as line-wide.
 
 The regex accepts the marker with or without a reason. Write one anyway: the marker outlives the person who added it, and the reason is what tells the next reader whether it still holds. Exempt lines are not invisible either, since `slop-scanner.mjs stats` reports per-rule active versus suppressed counts, so a gate that is quietly being argued out of firing still shows up.
 
@@ -180,6 +192,10 @@ A worked example, start to finish:
 ## Scope
 
 Tuned for web-centric code (Python, TypeScript, JavaScript, CSS) and English prose, plus a layout and adaptation rule set for Apple platforms (`anti-slop/skills/anti-slop/references/native-ui-patterns.md`) that runs on `.swift`, `.m`, and `.mm` files. Design tells run on web extensions only and native tells on Apple extensions only, so neither vocabulary is matched against the other's files. Limited coverage for systems languages (Rust, Go, C/C++), Jetpack Compose, ML pipelines, and non-English text: there, apply the underlying principles (specificity, economy, correctness) rather than the word lists.
+
+## Third-party notices
+
+Impeccable (https://github.com/pbakaus/impeccable), Copyright 2025 Paul Bakaus, Apache-2.0; detection thresholds and exemptions re-expressed, no code copied. Several scanner rules restate impeccable's detection rules as of commit 3671d50f0 in this repository's own code: the contrast, side-stripe, type-floor, reading-mechanics, bounce-easing, pulsing-dot, marquee, background-pattern, radial-halo, gray-on-color, skipped-heading, glow and card-trio detectors and the DESIGN.md reader with its design-system-font rule, with its lessons on comment blanking, class-set scope, unknown values and rule-scoped waivers. The header of `anti-slop/scripts/lib/design-detect.mjs` names the rules re-expressed. The Apache License, Version 2.0 is at http://www.apache.org/licenses/LICENSE-2.0.
 
 ## License
 

@@ -212,18 +212,24 @@ test("a guarded rule is skipped end to end by scanContent", () => {
 });
 
 // ── Counting shapes and the concentration gate (2.1.0) ───────────────────────
-// A rule counts by `pattern`, by `classAll`, or by a `count(line)` predicate, and exactly
-// one of the three has to be present or the rule silently counts nothing.
+// A rule counts by `pattern`, by `classAll`, by a `count(line)` predicate, or (2.5.0) by a
+// `hits(ctx)` file-level detector, and exactly one of the four has to be present or the
+// rule silently counts nothing.
 test("every table rule declares exactly one way of counting a line", () => {
   for (const rule of ALL_TABLE_RULES) {
-    const shapes = [rule.pattern, rule.classAll, rule.count].filter((s) => s !== undefined);
+    const shapes = [rule.pattern, rule.classAll, rule.count, rule.hits].filter((s) => s !== undefined);
     assert.equal(
       shapes.length, 1,
-      `rule "${rule.name}" declares ${shapes.length} counting shapes; expected exactly one of pattern/classAll/count`,
+      `rule "${rule.name}" declares ${shapes.length} counting shapes; expected exactly one of pattern/classAll/count/hits`,
     );
     if (rule.pattern !== undefined) assert.ok(rule.pattern instanceof RegExp, `rule "${rule.name}" has a non-RegExp pattern`);
     if (rule.classAll !== undefined) assert.ok(Array.isArray(rule.classAll) && rule.classAll.length >= 2, `rule "${rule.name}" needs >= 2 classAll tokens`);
     if (rule.count !== undefined) assert.equal(typeof rule.count, "function", `rule "${rule.name}" has a non-function count`);
+    if (rule.hits !== undefined) assert.equal(typeof rule.hits, "function", `rule "${rule.name}" has a non-function hits`);
+    if (rule.gate !== undefined) {
+      assert.equal(typeof rule.gate, "function", `rule "${rule.name}" has a non-function gate`);
+      assert.equal(typeof rule.hits, "function", `rule "${rule.name}" declares a gate with no hits detector to gate`);
+    }
   }
 });
 
@@ -256,11 +262,46 @@ test("a count() predicate drives the same gate a pattern does, end to end", () =
   };
   DESIGN_PATTERNS.push(probe);
   try {
+    // Design rules read comment-blanked text (2.5.0), so the planted hits sit in
+    // declarations and only the hatch sits in a comment.
     const fired = (css) => scanContent(css, "app.css").some((v) => v.name === "count-probe");
-    assert.equal(fired(".a { /* odd */ }"), false, "one hit is below minCount");
-    assert.equal(fired(".a { /* odd */ }\n.b { /* odd */ }"), true);
-    assert.equal(fired(".a { /* odd */ } // anti-slop-allow: opted out\n.b { /* odd */ }"), false,
+    assert.equal(fired(".a { odd: 1 }"), false, "one hit is below minCount");
+    assert.equal(fired(".a { odd: 1 }\n.b { odd: 1 }"), true);
+    assert.equal(fired(".a { /* odd */ }\n.b { /* odd */ }"), false, "a commented-out declaration is not on the page");
+    assert.equal(fired(".a { odd: 1 } /* anti-slop-allow: opted out */\n.b { odd: 1 }"), false,
       "the escape hatch must reach a count() rule the same way it reaches a pattern rule");
+  } finally {
+    DESIGN_PATTERNS.pop();
+  }
+});
+
+// A file-level detector reads the shared context once per file and returns hits; the scanner
+// owns the hatch, the count, the first line and the list of lines, exactly as for a pattern.
+test("a hits() detector drives the same gate and hatch a pattern does, end to end", () => {
+  let built = 0;
+  const probe = {
+    name: "hits-probe", severity: "low", confidence: CONFIDENCE.TASTE,
+    mode: CONCENTRATION, minCount: 2,
+    hits: (ctx) => {
+      built += 1;
+      return ctx.css.blocks.filter((b) => b.decls.some((d) => d.prop === "odd")).map((b) => ({ line: b.line, evidence: b.selector }));
+    },
+    fix: "probe", desc: "probe rule for the hits detector",
+  };
+  DESIGN_PATTERNS.push(probe);
+  try {
+    const run = (css) => scanContent(css, "app.css").find((v) => v.name === "hits-probe");
+    assert.equal(run(".a { odd: 1 }"), undefined, "one hit is below minCount");
+    const fired = run(".a { color: red }\n.b { odd: 1 }\n.c { odd: 2 }");
+    assert.equal(fired.count, 2);
+    assert.equal(fired.line, 2);
+    assert.deepEqual(fired.lines, [2, 3]);
+    assert.equal(fired.evidence, ".b");
+    assert.equal(run(".b { odd: 1 } /* anti-slop-allow: opted out */\n.c { odd: 2 }"), undefined,
+      "the escape hatch on a hit's own line must drop that hit");
+    built = 0;
+    scanContent(".x { odd: 1 }", "app.css");
+    assert.equal(built, 1, "the detector runs once per file");
   } finally {
     DESIGN_PATTERNS.pop();
   }

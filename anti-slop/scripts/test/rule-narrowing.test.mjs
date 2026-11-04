@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { scanContent } from "../lib/scan.mjs";
+import { countOffScaleSpacing } from "../lib/rules.mjs";
 
 const names = (content, path) => scanContent(content, path).map((v) => v.name);
 const fires = (rule, content, path) => names(content, path).includes(rule);
@@ -179,4 +180,186 @@ test("native: a repeating symbol effect is a finding", () => {
 test("native: a one-shot symbol effect is NOT a finding", () => {
   const swift = 'Image(systemName: "checkmark").symbolEffect(.bounce, value: saved)';
   assert.ok(!fires("repeating-symbol-effect", swift, "SaveButton.swift"));
+});
+
+// ── Purple class rules read resting utilities in one class set (2.5.0) ───────
+// A hover or focus purple, a /10 tint, and two halves of a gradient split across sibling
+// elements were all counted through 2.4.0. Breakpoints and dark: still paint at rest.
+
+test("ai-purple-class and purple-gradient-default: states, tints and sibling halves are not the palette", () => {
+  const html = '<button class="hover:bg-indigo-500 text-white">One</button><button class="focus:ring-violet-500 text-white">Two</button>\n' +
+    '<div class="bg-indigo-500/10 p-4">Tint</div><div class="bg-violet-600/5 p-4">Tint</div>\n' +
+    '<span class="from-indigo-500 x"></span><span class="to-violet-600">x</span>';
+  const got = names(html, "state-variant.html");
+  assert.ok(!got.includes("ai-purple-class") && !got.includes("purple-gradient-default"), JSON.stringify(got));
+});
+
+test("ai-purple-class: breakpoint and dark: variants still paint at rest", () => {
+  const v = scanContent('<div class="md:bg-indigo-600 dark:text-violet-400">x</div>', "a.html").find((x) => x.name === "ai-purple-class");
+  assert.equal(v && v.count, 2);
+  assert.equal(scanContent('<div class="bg-violet-600 hover:bg-violet-700">x</div><p class="text-violet-600">y</p>', "a.html").find((x) => x.name === "ai-purple-class").count, 2,
+    "the resting tokens count and the hover one does not");
+  assert.equal(scanContent('<a class="bg-gradient-to-r from-indigo-500 to-violet-600">x</a>', "a.html").find((x) => x.name === "ai-purple-class").count, 2,
+    "gradient stops count beside the gradient they paint");
+  assert.ok(!fires("ai-purple-class", '<i class="from-indigo-500"></i><i class="to-violet-600"></i>', "a.html"), "a stop with no gradient paints nothing");
+});
+
+test("ai-purple-class: an @apply line outside markup is read with token boundaries", () => {
+  assert.ok(fires("ai-purple-class", ".btn { @apply bg-indigo-600 text-violet-500; }", "app.css"));
+  assert.ok(!fires("ai-purple-class", ".btn { @apply hover:bg-indigo-600 bg-indigo-600/10; }", "app.css"));
+});
+
+test("purple gradients: both halves in one class set and one arm fire, split halves do not", () => {
+  assert.ok(fires("purple-gradient-default", '<a class="bg-gradient-to-r from-indigo-500 to-violet-600">x</a>', "a.html"));
+  assert.ok(!fires("purple-gradient-default", '<a className={on ? "from-indigo-500" : "to-violet-600"} />', "A.tsx"));
+  assert.ok(fires("purple-blue-gradient", '<h1 class="to-blue-500 from-purple-600">x</h1>', "a.html"), "order-free inside one set");
+  assert.ok(!fires("purple-blue-gradient", '<i class="from-purple-600"></i><i class="to-blue-500"></i>', "a.html"));
+  assert.ok(fires("purple-blue-gradient", ".hero { background: linear-gradient(135deg, #6366f1, #8b5cf6); }", "a.css"), "the hex half is unchanged");
+});
+
+// ── neon-glow is a perceptible coloured glow (2.5.0) ─────────────────────────
+
+test("neon-glow: soft neutral shadows, token definitions and hairline rings are not glows", () => {
+  assert.ok(!fires("neon-glow", ".card { box-shadow: 0 0 24px rgba(0, 0, 0, 0.06); }", "soft-shadow.css"));
+  assert.ok(!fires("neon-glow", ":root { --card-box-shadow: 0 0 20px #000; }", "token-prop.css"));
+  assert.ok(!fires("neon-glow", '<div class="shadow-[0_0_1px_rgba(0,0,0,0.2)] p-4">x</div>', "tw-shadow.html"));
+});
+
+test("neon-glow: a coloured glow fires in computed form and as a Tailwind arbitrary value", () => {
+  assert.ok(fires("neon-glow", ".cta { box-shadow: 0px 0px 28px rgba(34, 211, 238, 0.55); }", "a.css"), "zero offsets written 0px");
+  assert.ok(fires("neon-glow", '<div class="shadow-[0_0_24px_rgba(168,85,247,0.6)]">x</div>', "a.html"));
+  assert.ok(!fires("neon-glow", ".cta { box-shadow: 0 0 4px rgba(34, 211, 238, 1); }", "a.css"), "a 4px blur is a ring, not a glow");
+  assert.ok(!fires("neon-glow", ".cta { box-shadow: 0 0 8px rgba(34, 211, 238, 0.2); }", "a.css"), "strength 1.6 is below what a viewer sees");
+  assert.ok(!fires("neon-glow", ".cta { box-shadow: 0 4px 24px rgba(34, 211, 238, 0.6); }", "a.css"), "an offset shadow is elevation");
+});
+
+test("neon-glow: a focus halo is a state indicator, and the same halo at rest is a glow", () => {
+  assert.ok(!fires("neon-glow", ".btn:focus-visible { box-shadow: 0 0 12px rgba(14, 165, 233, 0.6); }", "a.css"));
+  assert.ok(!fires("neon-glow", '<button class="focus-visible:shadow-[0_0_12px_rgba(14,165,233,0.6)]">x</button>', "a.html"));
+  assert.ok(fires("neon-glow", ".btn { box-shadow: 0 0 12px rgba(14, 165, 233, 0.6); }", "a.css"));
+});
+
+test("neon-glow: a halo along a thin bar is a lit track; a halo around a dot is the glow", () => {
+  assert.ok(!fires("neon-glow", ".pass-glow-bar { width: 200px; height: 4px; box-shadow: 0 0 16px rgba(26, 58, 214, .8); }", "a.css"));
+  assert.ok(fires("neon-glow", ".status-orb { width: 24px; height: 24px; border-radius: 50%; box-shadow: 0 0 18px rgba(34, 197, 94, 0.7); }", "a.css"),
+    "a round element keeps the glow verdict however far its halo reaches");
+  assert.ok(fires("neon-glow", ".card { width: 320px; height: 200px; box-shadow: 0 0 16px rgba(26, 58, 214, .8); }", "a.css"));
+});
+
+// ── token-drift-spacing reads spacing declarations, not token definitions (2.5.0) ──
+
+test("countOffScaleSpacing: token definitions and scroll offsets are not spacing; grid-gap still is", () => {
+  assert.equal(countOffScaleSpacing(":root { --space-1: 4px; --space-2: 8px; --card-padding: 13px; --x-margin: 13px; }"), 0);
+  assert.equal(countOffScaleSpacing(".a { scroll-margin-top: 13px; }"), 0);
+  assert.equal(countOffScaleSpacing(".a { padding: 13px; }"), 1);
+  assert.equal(countOffScaleSpacing(".a { grid-gap: 13px; }"), 1, "the legacy alias is spacing");
+  assert.equal(countOffScaleSpacing(".a { grid-row-gap: 13px; grid-column-gap: 13px; }"), 2);
+});
+
+test("countOffScaleSpacing: a JS style object's value stops at its own end", () => {
+  assert.equal(countOffScaleSpacing("<div style={{ padding: '16px', fontSize: '13px', lineHeight: '21px' }}>x</div>"), 0);
+  assert.equal(countOffScaleSpacing("<div style={{ padding: '13px', fontSize: '16px' }}>x</div>"), 1);
+  assert.equal(countOffScaleSpacing("const s = { margin: 13, gap: 8 };"), 0, "bare numbers carry no px unit");
+});
+
+test("token-drift-spacing: the probe files from the history set stay clean", () => {
+  const tokens = ":root { --space-1: 4px; --space-2: 8px; --card-padding: 13px; --x-margin: 13px; }";
+  assert.ok(!fires("token-drift-spacing", tokens, "token-prop.css"));
+  const tsx = ":root { --space-1: 4px; --space-2: 8px; }\nexport const A = () => <div style={{ padding: '16px', fontSize: '13px', lineHeight: '21px' }}>x</div>;";
+  assert.ok(!fires("token-drift-spacing", tsx, "jsx-style.tsx"));
+});
+
+// ── cream-serif-default counts distinct legs (2.5.0) ─────────────────────────
+
+test("cream-serif-default: two hits of one leg are one leg", () => {
+  assert.ok(!fires("cream-serif-default", ".a { background: #faf8f5 } .b { background: #f5f1e8 }", "a.css"));
+  assert.ok(!fires("cream-serif-default", 'h1 { font-family: "Fraunces" } h2 { font-family: "Playfair Display" }', "a.css"));
+});
+
+test("cream-serif-default: the firing pairs, and a sage accent on cream", () => {
+  assert.ok(fires("cream-serif-default", "body { background: #faf8f5 } .accent { color: #15573a }", "a.css"), "cream + sage");
+  assert.ok(fires("cream-serif-default", 'h1 { font-family: "Instrument Serif" } .accent { color: #15573a }', "a.css"), "serif + sage");
+  assert.ok(!fires("cream-serif-default", ".accent { color: #15573a } .cta { color: #c2410c }", "a.css"), "sage + clay alone");
+  const v = scanContent('body { background: #faf8f5 }\nh1 { font-family: "Instrument Serif", serif }', "a.css").find((x) => x.name === "cream-serif-default");
+  assert.equal(v.evidence, "cream #faf8f5 + serif Instrument Serif");
+});
+
+test("cream-serif-default: a hatched leg no longer completes the pair", () => {
+  const css = 'body { background: #faf8f5 }\n.b { background: #f5f1e8 }\nh1 { font-family: "Instrument Serif" } /* anti-slop-allow: the brand face */';
+  assert.ok(!fires("cream-serif-default", css, "a.css"), "two cream hexes are still one leg once the serif line is waived");
+});
+
+// ── shadow-border-rounded-combo fires on the repeated treatment (2.5.0) ──────
+
+test("shadow-border-rounded-combo: one framed card among unframed sections is a choice", () => {
+  const one = '<section class="py-12">a</section>\n<div class="shadow-sm border rounded-xl p-6">b</div>\n<section class="py-12">c</section>';
+  assert.ok(!fires("shadow-border-rounded-combo", one, "a.html"));
+});
+
+test("shadow-border-rounded-combo: three trio cards fire; a colour-only border is not a leg", () => {
+  const card = (cls) => `<div class="${cls}">x</div>`;
+  assert.ok(fires("shadow-border-rounded-combo", [1, 2, 3].map(() => card("rounded-xl border shadow-sm p-6")).join("\n"), "a.html"));
+  assert.ok(!fires("shadow-border-rounded-combo", [1, 2, 3].map(() => card("shadow-sm border-gray-200 rounded-xl p-6")).join("\n"), "a.html"));
+});
+
+test("shadow-border-rounded-combo: two trio cards fire only when they are every card on the surface", () => {
+  const trio = '<div class="rounded-xl border shadow-sm p-6">a</div>\n<div class="rounded-lg border shadow p-4">b</div>';
+  assert.ok(fires("shadow-border-rounded-combo", trio, "a.html"));
+  assert.ok(!fires("shadow-border-rounded-combo", `${trio}\n<div class="rounded-2xl bg-stone-50 p-8">c</div>`, "a.html"), "a third, differently framed card");
+});
+
+test("shadow-border-rounded-combo: the arms of one element are one card", () => {
+  const tsx = 'export const C = ({ on }) => <div className={cn("rounded-xl border shadow-sm p-6", on ? "bg-white" : "bg-stone-50")} />;';
+  assert.ok(!fires("shadow-border-rounded-combo", tsx, "C.tsx"));
+});
+
+// ── uniform-literal-radius ignores zero resets (2.5.0) ───────────────────────
+
+test("uniform-literal-radius: three zero resets are not a radius choice; three sub-rem radii are", () => {
+  assert.ok(!fires("uniform-literal-radius", ".a { border-radius: 0px; }\n.b { border-radius: 0px; }\n.c { border-radius: 0px; }", "square.css"));
+  assert.ok(!fires("uniform-literal-radius", ".a { border-radius: 0; }\n.b { border-radius: 0rem; }\n.c { border-radius: 0.0rem; }", "square.css"));
+  assert.ok(fires("uniform-literal-radius", ".a { border-radius: 0.5rem; }\n.b { border-radius: 0.5rem; }\n.c { border-radius: 0.5rem; }", "rem.css"),
+    "0.5rem starts with a zero and is still a radius");
+  assert.ok(fires("uniform-literal-radius", ".a { border-radius: 0.25rem; }\n.b { border-radius: 0.375rem; }\n.c { border-radius: 10px; }", "mixed.css"));
+});
+
+test("neon-glow: a glow in a keyframe step counts when a painted element runs it", () => {
+  const kf = "@keyframes breathe { 50% { box-shadow: 0 0 14px rgba(255, 0, 200, 0.5); } }";
+  assert.ok(fires("neon-glow", `${kf}\n.pulse { animation: breathe 3s infinite; }`, "a.css"));
+  assert.ok(!fires("neon-glow", kf, "a.css"), "keyframes nothing runs");
+  assert.ok(!fires("neon-glow", `${kf}\n.pulse { display: none; animation: breathe 3s infinite; }`, "a.css"), "run only by a hidden element");
+  const html = (cls) => `<style>${kf} .pulse { animation: breathe 3s infinite; }</style><button class="${cls}">Go</button>`;
+  assert.ok(fires("neon-glow", html("pulse"), "a.html"));
+  assert.ok(!fires("neon-glow", html("other"), "a.html"), "no element in the markup carries the running class");
+});
+
+// ── Smaller history-proven fixes (2.5.0, P2) ─────────────────────────────────
+
+test("ai-purple-hex: an unread scale-named palette token is a tokens file, a semantic role is the brand", () => {
+  assert.ok(!fires("ai-purple-hex", ":root { --violet-500: #8b5cf6; --indigo-600: #4f46e5; }", "tokens.css"));
+  const read = ":root { --violet-500: #8b5cf6; --indigo-600: #4f46e5; }\n.cta { background: var(--violet-500) } .link { color: var(--indigo-600) }";
+  assert.equal(scanContent(read, "tokens.css").find((v) => v.name === "ai-purple-hex").count, 2, "the same tokens, read");
+  assert.equal(scanContent(":root { --primary: #7c3aed; --primary-hover: #6d28d9; }", "tokens.css").find((v) => v.name === "ai-purple-hex").count, 2,
+    "a semantic role counts even when another file reads it");
+  assert.ok(fires("ai-purple-hex", ".a { color: #7c3aed } .b { border-color: #6d28d9 }", "a.css"), "literal uses are unchanged");
+});
+
+test("em-dash-density: a dash alone in a table cell is the table's none", () => {
+  const table = "| Plan | Seats | SSO | Audit log |\n|---|---|---|---|\n| Free | 1 | — | — |\n| Team | 10 | — | — |\n| Business | 50 | yes | — |\n| Enterprise | any | yes | yes |";
+  assert.ok(!scanContent(table, "table.md").some((v) => v.name === "em-dash-density"));
+  const prose = "One — two — three — four — five — six dashes in a short line of prose.";
+  assert.ok(scanContent(prose, "post.md").some((v) => v.name === "em-dash-density"), "dashes in sentences still count");
+});
+
+test("neon-glow: a coloured text-shadow halo is a glow; a soft drop shadow is not", () => {
+  assert.ok(fires("neon-glow", "h1 { text-shadow: 0 0 20px rgba(168, 85, 247, 0.8); }", "a.css"));
+  assert.ok(!fires("neon-glow", "h1 { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); }", "a.css"));
+});
+
+test("a finding that spans several lines carries every line, and the text report names them", () => {
+  const css = ".a { color: #7c3aed }\n.b { padding: 4px }\n.c { border-color: #6d28d9 }";
+  const v = scanContent(css, "a.css").find((x) => x.name === "ai-purple-hex");
+  assert.deepEqual(v.lines, [1, 3]);
+  const js = "eval(a);\nconst b = 1;\neval(c);\n";
+  assert.deepEqual(scanContent(js, "a.js").find((x) => x.name === "eval-usage").lines, [1, 3]);
 });

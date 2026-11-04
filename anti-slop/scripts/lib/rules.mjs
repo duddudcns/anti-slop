@@ -1,3 +1,12 @@
+import {
+  lowContrastHits, sideStripeHits, textSizeFloorHits, tightLeadingHits, wideTrackingHits,
+  justifiedNarrowHits, crushedTrackingHits, bounceEasingHits, pulsingDotHits, marqueeHits,
+  backgroundPatternHits, radialHaloHits, grayOnColorHits, skippedHeadingHits,
+  classFreeLines, lineRegexHits, matchingClassSets, tailwindToken, isResting, isStateVariant, glowHits,
+  creamLegHits, creamCombination, framedCardSets, framedCardTrio, primaryFamilyBlocks, familyKey,
+  designSystemFontHits, purpleMatchExempt, tailwindPurpleColour, parseColor,
+} from "./design-detect.mjs";
+
 // ── Confidence classes ──
 // How sure the scanner is that a match is WRONG HERE, which is a different axis from
 // how much it would cost if it is (that is `severity`). The two never collapse: a
@@ -70,15 +79,20 @@ export const CONCENTRATION = "concentration";
 // `pattern`, and the scanner calls it once per line exactly where it would have counted
 // regex matches. 1px and 2px are on-scale by construction: hairline borders and 2px
 // offsets are not spacing decisions.
+// The property must start at a token boundary, so `--card-padding: 13px` (a token
+// definition) and `scroll-padding` are not spacing, while the legacy `grid-gap` aliases are.
+// A quoted value ends at its closing quote and a bare one before the next key of a JS
+// object, so `padding: '16px', fontSize: '13px'` reads one value, not three.
 const SPACING_DECLARATION =
-  /\b(?:padding|margin|gap|row-gap|column-gap|inset)(?:-(?:top|right|bottom|left|inline|block)(?:-(?:start|end))?)?\s*:\s*([^;{}]*)/gi;
+  /(?<![\w-])(?:grid-)?(?:padding|margin|gap|row-gap|column-gap|inset)(?:-(?:top|right|bottom|left|inline|block)(?:-(?:start|end))?)?\s*:\s*(?:(["'`])(.*?)\1|((?:(?!,\s*[A-Za-z_$][\w$-]*\s*:)[^;{}\n])*))/gi;
 
 export function countOffScaleSpacing(line) {
   const declarations = new RegExp(SPACING_DECLARATION.source, SPACING_DECLARATION.flags);
   let hits = 0;
   let declaration;
   while ((declaration = declarations.exec(line)) !== null) {
-    const value = declaration[1];
+    if (declaration[0].length === 0) { declarations.lastIndex += 1; continue; }
+    const value = declaration[2] ?? declaration[3] ?? "";
     // A value routed through the design system -- var(--space-3), clamp(), calc() on a
     // token -- is the correct idiom and is what the rule wants people to write.
     if (/var\(|clamp\(|calc\(/i.test(value)) continue;
@@ -170,6 +184,18 @@ export const BANNED_PHRASES = [
   "key takeaways", "without further ado",
 ];
 
+// ── Precompiled banned-phrase regexes ──
+// Whole words: "in today's" must not match inside "within today's". A phrase that ends in a
+// letter also takes its plural ("game-changers", "deep dives"), which a substring search
+// caught and a bare trailing boundary would lose; a phrase that ends in punctuation
+// ("absolutely!") keeps only the leading boundary.
+export const BANNED_PHRASE_REGEXES = new Map(
+  BANNED_PHRASES.map((phrase) => [
+    phrase,
+    new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRegExp(phrase)}${/[\p{L}\p{N}]$/u.test(phrase) ? "(?:s|es)?(?![\\p{L}\\p{N}_])" : ""}`, "giu"),
+  ]),
+);
+
 // ── A text glyph standing in for a control (design + native) ──
 // The 2.1.0 incident: a pause/play toggle shipped as the bare text glyph. The emoji rule
 // follows Unicode (2.3.1), so a bare play or pause sign is typography to it, and the
@@ -181,6 +207,161 @@ const MEDIA_CONTROL_GLYPH = {
   pattern: /[\u{23CF}\u{23ED}-\u{23EF}\u{23F8}-\u{23FA}\u{25B6}\u{25C0}](?!️)/gu,
   fix: "Use an icon component from the project's set with an accessible name, or a word: a labelled status reads better than a bare glyph.", desc: "Media-control text glyph used as a control (an icon belongs here)",
 };
+
+// ── Tailwind purple, read per class set ──
+// A purple utility is the palette only when it paints at rest: `hover:bg-indigo-500`, a
+// `/10` tint and a `focus:ring-violet-500` are states and washes, not the brand. A gradient's
+// from-/to- halves must share one class set and one ternary arm; two sibling elements on one
+// line are two elements. Outside class sources (an @apply line) the same vocabulary is
+// matched by token boundaries that refuse a variant prefix and an opacity suffix.
+const PURPLE_UTILITY = /^(?:bg|text|from|via|to|border|ring|fill|stroke|decoration|outline)-(?:indigo|violet|purple|fuchsia)-(?:400|500|600|700|800)$/;
+const PURPLE_UTILITY_TEXT = /(?<![\w:/-])(?:bg|text|from|via|to|border|ring|fill|stroke|decoration|outline)-(?:indigo|violet|purple|fuchsia)-(?:400|500|600|700|800)(?![\w/-])/gi;
+const PURPLE_RAMP_TEXT = /from-(indigo|purple|violet)-[45]00\s.*to-(indigo|purple|violet)-[56]00/i;
+const PURPLE_BLUE_TEXT = /from-(purple|violet|indigo|fuchsia)-\d+\s+(via-[a-z]+-\d+\s+)?to-(blue|indigo|pink|cyan|sky)-\d+/i;
+const PURPLE_HEX_GRADIENT = /linear-gradient\([^)]*#(6366f1|7c3aed|8b5cf6|a855f7)[^)]*\)/i;
+
+// A DESIGN.md palette exempts purple per match, never per rule: a hex or a utility is the
+// documented palette when it sits within 6 per channel of a declared colour, or within 15
+// degrees of hue of a declared colour on the purple arc (design-detect declaredPurple). A
+// match is exempt only when every purple colour in it is; every other match still fires.
+const AI_PURPLE_HEX = /#(6366f1|4f46e5|818cf8|7c3aed|6d28d9|8b5cf6|a855f7|9333ea|7e22ce|c026d3|d946ef)\b/gi;
+const PURPLE_UTILITY_BASE = /(?:bg|text|from|via|to|border|ring|fill|stroke|decoration|outline)-(?:indigo|violet|purple|fuchsia)-[4-8]00/gi;
+
+function purpleColoursIn(text) {
+  const s = String(text);
+  return [
+    ...[...s.matchAll(AI_PURPLE_HEX)].map((m) => parseColor(m[0])),
+    ...[...s.matchAll(PURPLE_UTILITY_BASE)].map((m) => tailwindPurpleColour(m[0])),
+  ].filter(Boolean);
+}
+
+const undeclared = (ctx) => (h) => {
+  if (!ctx.designSystem) return true;
+  const colours = purpleColoursIn(h.evidence);
+  return colours.length === 0 || !colours.every((c) => purpleMatchExempt(ctx.designSystem, c));
+};
+
+// A tokens file that declares the whole Tailwind palette is not the palette in use: a purple
+// hex in an unread scale-named custom property (`--violet-500`) is skipped. A semantic role
+// (`--primary`, `--brand-accent`, `--link-hover`) counts wherever it is declared, because the
+// file that reads it is often another one, and any token this file reads counts.
+const SEMANTIC_TOKEN = /(?:^|-)(?:primary|brand|accent|cta|action|link|highlight)(?:-|$)/i;
+const SCALE_TOKEN = /^--[a-z]+-\d{2,3}$/i;
+
+function aiPurpleHexHits(ctx) {
+  const hits = [];
+  ctx.lines.forEach((line, i) => {
+    for (const m of line.matchAll(AI_PURPLE_HEX)) {
+      const def = /(--[\w-]+)\s*:\s*[^;{}]*$/.exec(line.slice(0, m.index));
+      if (def) {
+        const name = def[1];
+        const read = new RegExp(`var\\(\\s*${name.replace(/-/g, "\\-")}(?![\\w-])`).test(ctx.text);
+        if (!SEMANTIC_TOKEN.test(name.slice(2)) && SCALE_TOKEN.test(name) && !read) continue;
+      }
+      hits.push({ line: i + 1, evidence: m[0] });
+    }
+  });
+  return hits.filter(undeclared(ctx));
+}
+
+function restingBases(tokens) {
+  return tokens.map(tailwindToken).filter(isResting).map((t) => t.base);
+}
+
+function gradientSetHits(ctx, from, to) {
+  return matchingClassSets(ctx.classSets, (tokens) => {
+    const bases = restingBases(tokens);
+    return bases.some((b) => from.test(b)) && bases.some((b) => to.test(b));
+  }).map((set) => ({ line: set.line, evidence: set.tokens.filter((t) => /^(?:[\w-]+:)*(?:from|via|to)-/.test(t)).join(" ") }));
+}
+
+// A from-/via-/to- stop paints nothing unless its element also carries a gradient.
+const GRADIENT_DIRECTION = /^bg-(?:gradient|linear|radial|conic)(?:-|$)/;
+
+function aiPurpleClassHits(ctx) {
+  const bases = new Map();
+  for (const set of ctx.classSets) if (set.arm === null) bases.set(set.group, set.tokens);
+  const hits = [];
+  for (const set of ctx.classSets) {
+    const element = set.arm === null ? set.tokens : [...(bases.get(set.group) || []), ...set.tokens];
+    const gradient = restingBases(element).some((b) => GRADIENT_DIRECTION.test(b));
+    for (const raw of set.tokens) {
+      const t = tailwindToken(raw);
+      if (!isResting(t) || !PURPLE_UTILITY.test(t.base)) continue;
+      if (/^(?:from|via|to)-/.test(t.base) && !gradient) continue;
+      hits.push({ line: set.line, evidence: raw });
+    }
+  }
+  return [...hits, ...lineRegexHits(classFreeLines(ctx), PURPLE_UTILITY_TEXT)].filter(undeclared(ctx));
+}
+
+function purpleRampHits(ctx) {
+  return [
+    ...gradientSetHits(ctx, /^from-(?:indigo|purple|violet)-[45]00$/, /^to-(?:indigo|purple|violet)-[56]00$/),
+    ...lineRegexHits(classFreeLines(ctx), PURPLE_RAMP_TEXT),
+  ].filter(undeclared(ctx));
+}
+
+function purpleBlueHits(ctx) {
+  return [
+    ...gradientSetHits(ctx, /^from-(?:purple|violet|indigo|fuchsia)-\d+$/, /^to-(?:blue|indigo|pink|cyan|sky)-\d+$/),
+    ...lineRegexHits(classFreeLines(ctx), PURPLE_BLUE_TEXT),
+    ...lineRegexHits(ctx.lines, PURPLE_HEX_GRADIENT),
+  ].filter(undeclared(ctx));
+}
+
+// ── Tailwind forms of the focus and viewport rules ──
+// `focus:outline-none` with a focus ring in the same class set replaces the indicator
+// (WCAG 2.4.7 holds); with none, it removes it. A `focus-visible:` utility anywhere in the
+// file clears the rule through its `unless` guard, as `:focus-visible` in CSS does.
+const OUTLINE_KILL_CSS = /\boutline\s*:\s*(?:none|0)\b/gi;
+const FOCUS_REPLACEMENT = /^(?:ring(?:-\d+|-\[[^\]]+\])?|outline(?:-\d+|-solid|-dashed|-double|-\[[^\]]+\])|shadow-\[.+\]|(?:border|outline)-[a-z]+-\d{2,3})$/;
+
+function outlineNoneHits(ctx) {
+  const hits = lineRegexHits(ctx.lines, OUTLINE_KILL_CSS);
+  for (const set of ctx.effectiveSets) {
+    const toks = set.tokens.map(tailwindToken);
+    const kill = toks.find((t) => /^outline-(?:none|hidden)$/.test(t.base) && !t.variants.includes("focus-visible"));
+    if (!kill) continue;
+    const replaced = toks.some((t) => (t.variants.includes("focus") || t.variants.includes("focus-visible")) && FOCUS_REPLACEMENT.test(t.base));
+    if (!replaced) hits.push({ line: set.line, evidence: [...kill.variants, kill.base].join(":") });
+  }
+  return hits;
+}
+
+const VH_SHELL_CSS = /\b(?:height|min-height)\s*:\s*100vh\b/gi;
+
+function vhShellHits(ctx) {
+  const hits = lineRegexHits(ctx.lines, VH_SHELL_CSS);
+  for (const set of ctx.classSets) {
+    for (const raw of set.tokens) {
+      const t = tailwindToken(raw);
+      if (/^(?:min-)?h-screen$/.test(t.base) && !t.variants.some(isStateVariant)) hits.push({ line: set.line, evidence: raw });
+    }
+  }
+  return hits;
+}
+
+// ── The primary face ──
+// The face a block actually sets is the first non-generic family of its stack, read from
+// font-family or the font shorthand. A system stack is never a face, a family named only as
+// a fallback never fires, and the list matches whole names however they are spelled ("Geist
+// Sans", "GeistSans"), so "Inter Display" (a recommended alternative) is not Inter. A reflex
+// face on a button or field label is the UI label fallback and is permitted when the page sets
+// another face for its content.
+const GENERIC_FONT_FACES = new Set(["inter", "intertight", "intervariable", "intervar", "geist", "geistsans", "geistmono", "roboto", "spacegrotesk", "manrope", "plusjakartasans", "outfit", "dmsans"]);
+const NEXT_FONT_CONSTRUCTOR = /\b(?:Inter|Geist|Geist_Mono|Roboto|Space_Grotesk|Manrope|Plus_Jakarta_Sans|Outfit|DM_Sans)\s*\(/g;
+
+function genericFontHits(ctx) {
+  const blocks = primaryFamilyBlocks(ctx);
+  const hits = [];
+  for (const b of blocks) {
+    if (b.kind !== "face" || !GENERIC_FONT_FACES.has(familyKey(b.name))) continue;
+    if (b.control && blocks.some((o) => !o.control && o.kind !== "none" && o.name !== b.name)) continue;
+    hits.push({ line: b.line, evidence: `${b.selector}: ${b.name}` });
+  }
+  return [...hits, ...lineRegexHits(ctx.lines, NEXT_FONT_CONSTRUCTOR)];
+}
 
 // ── UI Design Patterns (WEB surfaces only -- see WEB_SURFACE_EXTENSIONS) ──
 // Ordered roughly by empirical signal where a corpus ranking exists. Severity reflects that
@@ -204,12 +385,12 @@ const MEDIA_CONTROL_GLYPH = {
 // suppress guard, both of which exist for exactly that reason), and no `fix` may propose it.
 export const DESIGN_PATTERNS = [
   MEDIA_CONTROL_GLYPH,
-  { name: "purple-gradient-default", severity: "medium", confidence: CONFIDENCE.SMELL, mode: PRESENCE, pattern: /from-(indigo|purple|violet)-[45]00\s.*to-(indigo|purple|violet)-[56]00/i, fix: "Pick the ramp from the project's own palette, or use one flat surface colour; a restaurant site does not need tech-purple.", desc: "Purple/indigo gradient (Tailwind AI default)" },
-  { name: "purple-blue-gradient", severity: "medium", confidence: CONFIDENCE.SMELL, mode: PRESENCE, pattern: /from-(purple|violet|indigo|fuchsia)-\d+\s+(via-[a-z]+-\d+\s+)?to-(blue|indigo|pink|cyan|sky)-\d+|linear-gradient\([^)]*#(6366f1|7c3aed|8b5cf6|a855f7)[^)]*\)/i, fix: "Choose the gradient from the brand's palette, or carry the section with one flat accent instead of the ramp nobody chose.", desc: "Purple-to-blue/pink gradient" },
+  { name: "purple-gradient-default", severity: "medium", confidence: CONFIDENCE.SMELL, mode: PRESENCE, hits: purpleRampHits, fix: "Pick the ramp from the project's own palette, or use one flat surface colour; a restaurant site does not need tech-purple.", desc: "Purple/indigo gradient (Tailwind AI default)" },
+  { name: "purple-blue-gradient", severity: "medium", confidence: CONFIDENCE.SMELL, mode: PRESENCE, hits: purpleBlueHits, fix: "Choose the gradient from the brand's palette, or carry the section with one flat accent instead of the ramp nobody chose.", desc: "Purple-to-blue/pink gradient" },
   // Hex and utility-class purple are property-level: the tell is "indigo IS the palette",
   // which one stray declaration does not establish.
-  { name: "ai-purple-hex", severity: "low", confidence: CONFIDENCE.SMELL, mode: CONCENTRATION, minCount: 2, pattern: /#(6366f1|4f46e5|818cf8|7c3aed|6d28d9|8b5cf6|a855f7|9333ea|7e22ce|c026d3|d946ef)\b/i, fix: "Replace the indigo/violet hexes with the project's brand tokens, chosen for what the product is rather than the framework default.", desc: "AI purple (indigo/violet hex as brand color)" },
-  { name: "ai-purple-class", severity: "medium", confidence: CONFIDENCE.SMELL, mode: CONCENTRATION, minCount: 2, pattern: /\b(bg|text|from|via|to|border|ring|fill|stroke|decoration|outline)-(indigo|violet|purple|fuchsia)-(400|500|600|700|800)\b/i, fix: "Name the primary in the project's own palette and use its token class; indigo-500 is the colour nobody chose.", desc: "AI purple as primary (Tailwind indigo/violet/purple class)" },
+  { name: "ai-purple-hex", severity: "low", confidence: CONFIDENCE.SMELL, mode: CONCENTRATION, minCount: 2, hits: aiPurpleHexHits, fix: "Replace the indigo/violet hexes with the project's brand tokens, chosen for what the product is rather than the framework default.", desc: "AI purple (indigo/violet hex as brand color)" },
+  { name: "ai-purple-class", severity: "medium", confidence: CONFIDENCE.SMELL, mode: CONCENTRATION, minCount: 2, hits: aiPurpleClassHits, fix: "Name the primary in the project's own palette and use its token class; indigo-500 is the colour nobody chose.", desc: "AI purple as primary (Tailwind indigo/violet/purple class)" },
   // Same "unchosen palette" logic, different framework: these three hexes are Bootstrap 5's
   // COMPILED literals ($primary #0d6efd, its hover darken #0b5ed7, $gray-300 border
   // #dee2e6). They reach shipped CSS only by leaving Bootstrap unthemed, and two of them
@@ -225,15 +406,15 @@ export const DESIGN_PATTERNS = [
   // right trade for a lone borrowed gray sitting below the signal floor.
   { name: "bootstrap-default-blue", severity: "low", confidence: CONFIDENCE.SMELL, mode: CONCENTRATION, minCount: 2, requires: /#(0d6efd|0b5ed7)\b/i, pattern: /#(0d6efd|0b5ed7|dee2e6)\b/i, fix: "Theme the framework: set $primary, the border colour and the radius and shadow scales to project values, or adopt the project's own tokens.", desc: "Unthemed Bootstrap compiled defaults (primary blue / gray-300 border)" },
   { name: "gradient-text", severity: "medium", confidence: CONFIDENCE.SMELL, mode: PRESENCE, pattern: /bg-clip-text\s[^"]*text-transparent|text-transparent\s[^"]*bg-clip-text|-webkit-background-clip\s*:\s*text|\bbackground-clip\s*:\s*text/i, fix: "Carry the headline with size, weight, or one flat accent colour on a single word, and let the typography itself be the design.", desc: "Gradient text on heading (strong AI tell)" },
-  // design-patterns.md has always said "the signal is the combination -- any two of
-  // {cream background, serif display, sage green}. One alone may be a real decision."
-  // minCount 2 is that sentence, enforced: a lone Fraunces heading is a choice.
-  // The accent leg is the rusty-orange/terracotta one, not sage. Two independent 2026
-  // sources and this repo's own 2026-07 spot-check record the drift, and the rule carried
-  // no accent leg at all in either colour. Red is deliberately excluded: it would collide
-  // with every error state on the web. The 200-level band is excluded for the same reason
+  // design-patterns.md: the signal is the combination. Four legs (cream ground, serif
+  // display, the sage accent and its rusty-orange/terracotta drift form, clay), and two
+  // DISTINCT legs fire: cream + serif, cream + sage, serif + sage, serif + clay. Clay pairs
+  // only with the serif display, because a warm editorial ground with a brick accent is a
+  // common human palette and the accent hues prescribed to replace AI purple sit in that band
+  // (resolved 2026-10-26). Two hits of one leg are one leg. Red is excluded from the accent:
+  // it would collide with every error state on the web; the 200-level band likewise, since
   // one amber warning banner is not a palette.
-  { name: "cream-serif-default", severity: "low", confidence: CONFIDENCE.SMELL, mode: CONCENTRATION, minCount: 2, pattern: /#(faf8f5|f5f1e8|f3eee3|fdfbf7|f7f3ec|faf6ef|f6f1e7|fbf7f0|f4efe4)\b|\bbg-(stone|amber|orange)-(50|100)\b|\b(Instrument\s*Serif|Fraunces|Playfair\s*Display|Cormorant|Spectral|DM\s*Serif)\b|\b(text|bg|border|ring|decoration)-(orange|amber)-(600|700|800)\b|#(b7410e|c2410c|9a3412|a0522d)\b/i, fix: "Anchor colour and type to the real brand or a named reference; where the combination is a stated decision, mark the line anti-slop-allow with the reason.", desc: "Cream/serif 'tasteful default' (the 2026 tell -- two or more legs of the combination)" },
+  { name: "cream-serif-default", severity: "low", confidence: CONFIDENCE.SMELL, mode: CONCENTRATION, minCount: 2, hits: creamLegHits, gate: creamCombination, fix: "Anchor colour and type to the real brand or a named reference; where the combination is a stated decision, mark the line anti-slop-allow with the reason.", desc: "Cream/serif 'tasteful default' (the 2026 tell -- two distinct legs of the combination)" },
   { name: "shadcn-default-card", severity: "low", confidence: CONFIDENCE.SMELL, mode: PRESENCE, pattern: /rounded-lg\s+border\s+bg-card\s+text-card-foreground\s+shadow-sm|"baseColor"\s*:\s*"(slate|zinc|gray|neutral|stone)"|--radius\s*:\s*0\.5rem/i, fix: "Theme the kit: set the border colour, radius, shadow and transition to project values so the surface stops looking like the library's own docs.", desc: "shadcn/ui card classes left at the library default (unthemed kit)" },
   // The next three are class-attribute FINGERPRINTS, and utility-class order inside a
   // `class=` attribute is arbitrary. Encoded as ordered `A\s[^"]*B\s[^"]*C` sequences they
@@ -243,19 +424,37 @@ export const DESIGN_PATTERNS = [
   // attribute-scoped, so it can never span two sibling elements.
   { name: "icon-in-colored-circle", severity: "medium", confidence: CONFIDENCE.SMELL, mode: PRESENCE, classAll: ["rounded-full", /^bg-[a-z]+-100$/, "p-3"], fix: "Drop the decorative circle where the icon reads on its own, or vary the treatment per card; the icon should explain the feature, not decorate it.", desc: "Icon in colored circle background" },
   { name: "frosted-glass-nav", severity: "medium", confidence: CONFIDENCE.SMELL, mode: PRESENCE, classAll: [/^backdrop-blur(-[a-z0-9]+)?$/, /^bg-white\/\d+$/, "border-b"], fix: "Vary the nav height and keep the blur only where the layered transparency serves the hierarchy; a solid bar or a sidebar is often the better nav.", desc: "Frosted glass navigation bar" },
-  { name: "shadow-border-rounded-combo", severity: "medium", confidence: CONFIDENCE.SMELL, mode: PRESENCE, classAll: ["shadow-sm", /^border(-[a-z]+-\d+)?$/, "rounded-xl"], fix: "Theme the card: set the border colour, radius and shadow to project tokens instead of shipping the library's default trio on every surface.", desc: "shadow-sm + border + rounded-xl AI card combo" },
-  { name: "neon-glow", severity: "low", confidence: CONFIDENCE.SMELL, mode: PRESENCE, pattern: /shadow-\[0_0_|drop-shadow-\[0_0_|box-shadow\s*:[^;]*\b0\s+0\s+\d{2,}px/i, fix: "Carry elevation the way the platform does, with a lighter surface and a real shadow scale: `background: var(--surface-2)` plus a 1px shadow.", desc: "Unprompted neon glow (dark-mode tell)" },
+  // The trio is the tell when it is the surface's card treatment: on three cards, or on
+  // every card of a surface that has two. One framed card among unframed sections is a
+  // choice. A colour-only border-gray-200 draws no border and is not a leg of the trio.
+  { name: "shadow-border-rounded-combo", severity: "medium", confidence: CONFIDENCE.SMELL, mode: PRESENCE, hits: framedCardSets, gate: framedCardTrio, fix: "Theme the card: set the border colour, radius and shadow to project tokens instead of shipping the library's default trio on every surface.", desc: "shadow-sm + border + rounded-lg/xl AI card combo (repeated across the cards of the surface)" },
+  // The rule enforces its own title: a coloured glow a viewer can see. A soft neutral
+  // shadow, a --card-box-shadow token definition, a 1px hairline ring and a focus halo are
+  // not one; neither is a diffuse wash that lights more than twice the element's area.
+  { name: "neon-glow", severity: "low", confidence: CONFIDENCE.SMELL, mode: PRESENCE, hits: (ctx) => glowHits(ctx, { textShadow: true }), fix: "Carry elevation the way the platform does, with a lighter surface and a real shadow scale: `background: var(--surface-2)` plus a 1px shadow.", desc: "Unprompted neon glow (dark-mode tell)" },
+  // One threshold whatever draws the stripe: a side border, an absolute ::before bar, an
+  // inset side shadow, a style object or border-l-N. Square boxes count from 3px (the
+  // catalogue bans the coloured left border on any box); selection and live-region edges,
+  // controls, list items and table cells are exempt, because there the edge is substance.
+  { name: "side-stripe-accent", severity: "medium", confidence: CONFIDENCE.SMELL, mode: PRESENCE, hits: sideStripeHits, fix: "Carry the emphasis with a surface tint, a heading or real selection state; a coloured edge on one side of a card reads as the generated default.", desc: "Coloured accent stripe on one side of a card (side tab)" },
   // "Maximal rounding on EVERYTHING": the tell is the uniform treatment across a surface,
   // not any single rounded corner. Below three the floor rule applies -- a lone
   // `rounded-full` on an icon wrapper is not "the same radius on every control".
   { name: "rounded-everything", severity: "low", confidence: CONFIDENCE.QUALITY, mode: CONCENTRATION, minCount: 3, pattern: /\brounded-(2xl|3xl|full)\b|border-radius\s*:\s*(999\d*px|9999px)/i, suppress: /\b[hw]-(\d|10|11|12|14|16)(\.5)?\b/i, fix: "State the radius as a token (`--radius: 8px`) and reference it, or vary it deliberately by control class; never remove the rounding.", desc: "Maximal rounding on every control (uncommitted radius)" },
   // The family list is the one two independent 2026 sources converge on, MINUS Poppins:
   // the evidence for Poppins is a single self-published page calling it "overused", and
-  // omitting it costs the rule nothing. `font-family: 'Inter Tight'` matches on \bInter\b
-  // -- same family, accepted. Only the `font-family:` declaration and the next/font
-  // constructor call are matched, so the word "Outfit" in body copy stays clean.
-  { name: "generic-font", severity: "low", confidence: CONFIDENCE.SMELL, mode: PRESENCE, pattern: /font-family\s*:\s*['"]?(Inter|Geist|Roboto|Space\s*Grotesk|Manrope|Plus\s*Jakarta\s*Sans|Outfit|DM\s*Sans)\b|\b(Inter|Geist|Geist_Mono|Roboto|Space_Grotesk|Manrope|Plus_Jakarta_Sans|Outfit|DM_Sans)\s*\(/i, fix: "Choose a face with a source: the brand's own, or a display-plus-body pairing, and state the reason for it.", desc: "Generic default font (Inter/Geist/Roboto and the 2026 successors)" },
+  // omitting it costs the rule nothing. Only a block's primary face and the next/font
+  // constructor call are read, so the word "Outfit" in body copy stays clean.
+  { name: "generic-font", severity: "low", confidence: CONFIDENCE.SMELL, mode: PRESENCE, hits: genericFontHits, fix: "Choose a face with a source: the brand's own, or a display-plus-body pairing, and state the reason for it.", desc: "Generic default font (Inter/Geist/Roboto and the 2026 successors)" },
+  // Only where DESIGN.md declares its typography: a face set outside it is drift from the
+  // documented system. A project's DESIGN.md describes the product, so test, fixture and
+  // story files, which are off-system on purpose, are skipped. Colour, radius and type-size
+  // drift are not ported (advisory upstream).
+  { name: "design-system-font", severity: "medium", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, skipInTests: true, hits: designSystemFontHits, fix: "Use a family DESIGN.md declares, or add the face to DESIGN.md typography with the reason it was chosen.", desc: "Face set outside the typography DESIGN.md declares" },
   { name: "hype-copy", severity: "low", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, pattern: /\bTransform your\b|\bSupercharge\b|\bUnleash\b|\bEffortlessly\b|take your [^.]{0,30}to the next level/i, fix: "Say what the control does: `Connect your GitHub account`, not `Seamlessly integrate with GitHub`.", desc: "Marketing hype copy in UI" },
+  { name: "background-pattern", severity: "low", confidence: CONFIDENCE.SMELL, mode: PRESENCE, hits: backgroundPatternHits, fix: "Let the surface carry the section with a solid tone, real imagery or space; a faint grid, dot field or stripe behind copy is template texture.", desc: "Decorative grid, dot field or repeating stripes behind content" },
+  { name: "radial-halo", severity: "low", confidence: CONFIDENCE.SMELL, mode: PRESENCE, hits: radialHaloHits, fix: "Ground the section with a solid or slightly shifted surface; if light must lead the eye, put it on the content rather than a halo behind it.", desc: "Saturated radial halo behind a section of a dark page" },
+  { name: "gray-on-color", severity: "low", confidence: CONFIDENCE.SMELL, mode: PRESENCE, hits: grayOnColorHits, fix: "Tint the secondary text from the surface hue at lower chroma, or use the surface's own ink; neutral gray on colour reads muddy.", desc: "Neutral mid-grey text on a chromatic surface" },
   { name: "stock-illustration", severity: "low", confidence: CONFIDENCE.SMELL, mode: PRESENCE, pattern: /\b(undraw|storyset|drawkit)\b/i, fix: "Replace the illustration with the thing it stands in for: a screenshot of the real screen, or a diagram drawn for this system.", desc: "Generic stock illustration (undraw/storyset)" },
   // The JS style-object form (`zIndex: 9999`) is the dominant one on .jsx/.tsx, which are
   // web surfaces this rule already runs on -- the CSS-only pattern could not see it.
@@ -284,16 +483,17 @@ export const DESIGN_PATTERNS = [
   { name: "fixed-grid-tracks", severity: "medium", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, pattern: /grid-template-(?:columns|rows)\s*:[^;{}]*\brepeat\(\s*\d+\s*,\s*\d*\.?\d+px\s*\)/gi, fix: "Let the track list respond: `grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr))` gains columns with no breakpoint.", desc: "Fixed grid track list (gains no columns as the window grows)" },
   // File-scoped, not line-scoped: the progressive-enhancement idiom writes its fallback on
   // the NEXT line (`height: 100vh; height: 100dvh;`), which a per-line suppress cannot see.
-  { name: "vh-viewport-shell", severity: "low", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, pattern: /\b(?:height|min-height)\s*:\s*100vh\b/gi, unless: /100dvh|100svh/i, fix: "Use `100dvh` (or `100svh`), and pad the last row with `max(0.75rem, env(safe-area-inset-bottom))`.", desc: "100vh app shell (the mobile URL bar clips the last row)" },
+  { name: "vh-viewport-shell", severity: "low", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, hits: vhShellHits, unless: /100dvh|100svh|\b(?:min-)?h-(?:dvh|svh)\b/i, fix: "Use `100dvh` (or `100svh`), and pad the last row with `max(0.75rem, env(safe-area-inset-bottom))`.", desc: "100vh app shell (the mobile URL bar clips the last row)" },
   // Only fires where there IS a scale to drift from. Ungated, an off-4px-grid rule fires
   // 20-25 times on every clean control in the corpus; gated on the file declaring two or
   // more --space tokens it fires on exactly one file. There is no drift without a scale.
   { name: "token-drift-spacing", severity: "low", confidence: CONFIDENCE.QUALITY, mode: CONCENTRATION, minCount: 2, requires: /--space[-_a-z0-9]*\s*:/i, requiresMinCount: 2, count: countOffScaleSpacing, fix: "Use the nearest existing --space token, or add and name a token where the value is genuinely new; never delete the spacing.", desc: "Raw spacing values bypassing the file's own --space token scale" },
+  // A zero radius is a reset, not a radius choice, and does not count; 0.5rem does.
   // Complements rounded-everything (Tailwind classes and 999px pills) rather than
   // overlapping it: this one is about literal `border-radius` values in a file that names
   // no radius identity to vary from. A file that defines --radius is silenced outright --
   // one clean control carries five literal radii and is protected by that guard alone.
-  { name: "uniform-literal-radius", severity: "low", confidence: CONFIDENCE.QUALITY, mode: CONCENTRATION, minCount: 3, unless: /border-radius\s*:\s*var\(|--radius[-_a-z0-9]*\s*:/i, pattern: /border-radius\s*:\s*\d+(?:\.\d+)?(?:px|rem)\b/gi, fix: "State a radius identity (`--radius`) and reference it, or vary the radius deliberately by control class.", desc: "Repeated literal radius with no stated radius identity (uncommitted default)" },
+  { name: "uniform-literal-radius", severity: "low", confidence: CONFIDENCE.QUALITY, mode: CONCENTRATION, minCount: 3, unless: /border-radius\s*:\s*var\(|--radius[-_a-z0-9]*\s*:/i, pattern: /border-radius\s*:\s*(?!0+(?:\.0+)?(?:px|rem)?(?![.\d]))\d+(?:\.\d+)?(?:px|rem)\b/gi, fix: "State a radius identity (`--radius`) and reference it, or vary the radius deliberately by control class.", desc: "Repeated literal radius with no stated radius identity (uncommitted default)" },
 
   // ── Controls and accessibility ──
   // A visible affordance that does not act is wrong on any reading, which is why this is a
@@ -304,8 +504,30 @@ export const DESIGN_PATTERNS = [
   // Both rules below are file-scoped or value-scoped so their remediation can only ADD
   // accessible behaviour. Replace the ring, never remove it (WCAG 2.4.7); write what the
   // image conveys. `alt=""` on a decorative image is correct and deliberately unmatched.
-  { name: "outline-none", severity: "medium", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, pattern: /\boutline\s*:\s*(?:none|0)\b/gi, unless: /:focus-visible|focus-visible:/, fix: "Replace the ring, never remove it: `:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px }`", desc: "outline: none in a file that defines no :focus-visible ring" },
+  { name: "outline-none", severity: "medium", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, hits: outlineNoneHits, unless: /:focus-visible|focus-visible:/, fix: "Replace the ring, never remove it: `:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px }`", desc: "outline: none in a file that defines no :focus-visible ring" },
   { name: "missing-alt", severity: "medium", confidence: CONFIDENCE.HARD, mode: PRESENCE, pattern: /<img\s(?![^>]*\balt\s*=)[^>]*>|\balt\s*=\s*["'](?:image|photo|picture|icon|graphic|img)["']/gi, fix: "Write what the image conveys where it sits; `alt=\"\"` is correct for a decorative image, and deleting the element never is.", desc: "<img> with no alt, or a placeholder alt value" },
+  // Arithmetic, not a pattern: the pair's WCAG 2.x ratio on the surface the file declares
+  // for it (the block's own background, the exact ancestor block a descendant chain names,
+  // or the page ground when nothing else in the file paints). An unmeasured pair reports
+  // nothing. A ratio within 0.3 of its bar is the low-severity near-bar rule, so a hairline
+  // miss never reads like a 2:1 one; placeholder text is measured, and reports at near-bar
+  // when the file labels its fields. Tailwind colour utilities are not resolved.
+  { name: "low-contrast", severity: "high", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, hits: (ctx) => lowContrastHits(ctx).filter((h) => !h.near), fix: "Darken the text or the surface until the pair clears 4.5:1 (3:1 at 24px or 18.66px bold); keep the hue and move only the lightness.", desc: "Text below WCAG AA contrast on its declared surface (WCAG 1.4.3)" },
+  { name: "low-contrast-near-bar", severity: "low", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, hits: (ctx) => lowContrastHits(ctx).filter((h) => h.near), fix: "Move the lightness one more step so the pair clears its bar with margin; keep the hue and the surface.", desc: "Text within 0.3 of the WCAG AA contrast bar" },
+  // Block-local: a size inherited from a parent rule is not resolved, so recall on
+  // component trees is a floor. Footnote markers, code and hidden text are exempt.
+  { name: "text-size-floor", severity: "medium", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, hits: textSizeFloorHits, fix: "Set running text at 12px or more (16px for body) and functional text at 11px or more; subordinate it with weight, colour or caps tracking instead.", desc: "Text set below the legibility floor (12px running, 11px functional)" },
+  // Reading mechanics, block-local. Headings, display sizes, caps labels, code and one-line
+  // furniture keep their tight or open setting; where the file's markup shows every element
+  // with the selector's classes holding a short label, it is a label and not running text.
+  { name: "tight-leading", severity: "low", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, hits: tightLeadingHits, fix: "Set body leading at 1.4 to 1.6; keep tight leading for display sizes and one-line labels.", desc: "Body text set with line-height under 1.3" },
+  { name: "wide-tracking", severity: "low", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, hits: wideTrackingHits, fix: "Keep running-text tracking between -0.01em and 0.02em; open tracking belongs to short capitalised labels.", desc: "Mixed-case running text tracked wider than 0.05em" },
+  { name: "justified-narrow-column", severity: "low", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, hits: justifiedNarrowHits, fix: "Set the narrow column ragged-right, or keep justify with hyphens: auto and a lang attribute on a measure of 45 characters or more.", desc: "Justified text in a column under about 45 characters with no hyphenation" },
+  { name: "crushed-tracking", severity: "low", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, hits: crushedTrackingHits, fix: "Ease the tracking to between -0.02em and -0.05em (to -0.07em at 40px and up); letters that touch cost legibility.", desc: "Letter-spacing tighter than -0.07em (-0.09em at 40px and up)" },
+  // The heading outline is how screen-reader users move through a page; a level chosen for
+  // its size breaks it. Full HTML documents only, since a component renders inside an
+  // outline it cannot see; a site footer's first heading may start lower.
+  { name: "skipped-heading", severity: "medium", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, hits: skippedHeadingHits, fix: "Use the next heading level and size it with CSS; the heading outline is how screen-reader users move through the page.", desc: "Heading level that jumps more than one step down" },
   // A Hard defect because it is one: WCAG 1.4.4 requires text to scale to 200%, and a
   // viewport that blocks pinch zoom removes the only control a low-vision user has on a
   // phone. The remediation only ever DELETES the two attributes -- the viewport meta a
@@ -313,14 +535,17 @@ export const DESIGN_PATTERNS = [
   // there is no reading of this rule under which clearing it costs adaptive behaviour.
   // `maximum-scale=1` is matched exactly (1, 1.0, 1.00): a cap of 5 still leaves the user
   // a usable range and stays clean, which is why the lookahead refuses a further digit.
-  { name: "viewport-zoom-lock", severity: "medium", confidence: CONFIDENCE.HARD, mode: PRESENCE, pattern: /\bviewport\b[^\n]*?(?:user-scalable\s*=\s*(?:no|0)\b|maximum-scale\s*=\s*1(?:\.0+)?(?![\d.]))/gi, fix: "Delete user-scalable and maximum-scale; `width=device-width, initial-scale=1` is the whole viewport meta", desc: "Viewport meta blocks pinch zoom (user-scalable=no / maximum-scale=1); fails WCAG 1.4.4" },
+  // The match lives inside the viewport <meta> tag, in either attribute order: the word
+  // viewport in prose followed by a quoted token on the same line is documentation, not
+  // the tag (2.5.1; a reference line about grepping for user-scalable=no fired 2.5.0).
+  { name: "viewport-zoom-lock", severity: "medium", confidence: CONFIDENCE.HARD, mode: PRESENCE, pattern: /<meta\b(?=[^>]*\bname\s*=\s*["']?viewport\b)[^>]*?\bcontent\s*=\s*["'][^"'>]*?(?:user-scalable\s*=\s*(?:no|0)\b|maximum-scale\s*=\s*1(?:\.0+)?(?![\d.]))/gi, fix: "Delete user-scalable and maximum-scale; `width=device-width, initial-scale=1` is the whole viewport meta", desc: "Viewport meta blocks pinch zoom (user-scalable=no / maximum-scale=1); fails WCAG 1.4.4" },
   // A Quality defect rather than Hard: a positive tabindex is reachable, so nothing is
   // unreachable by keyboard, but it jumps the whole document ahead of every natural stop
   // and the order it produces is invisible to the author who wrote it. `0` (join the
   // natural order) and `-1` (focusable by script only) are the two correct values and are
   // both outside the character class. The fix is DOM order, never dropping the attribute
   // from a control that needs to be focusable.
-  { name: "positive-tabindex", severity: "medium", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, pattern: /\btabindex\s*=\s*[{"']*\s*[1-9]\d*\b/gi, fix: "Use tabindex=\"0\" or none, and fix the DOM order so focus follows the reading order", desc: "Positive tabindex (overrides the natural focus order)" },
+  { name: "positive-tabindex", severity: "medium", confidence: CONFIDENCE.QUALITY, mode: PRESENCE, pattern: /(?<![\w-])tabindex\s*=\s*[{"']*\s*[1-9]\d*\b/gi, fix: "Use tabindex=\"0\" or none, and fix the DOM order so focus follows the reading order", desc: "Positive tabindex (overrides the natural focus order)" },
 
   // ── Documented fingerprints that had no rule ──
   // The first two are class-attribute compositions, so they use the unordered token-set
@@ -351,6 +576,13 @@ export const DESIGN_PATTERNS = [
   // frontend-patterns.md § Animation Performance already forbids by hand. The fix is
   // naming the properties, so nothing about prefers-reduced-motion handling is touched.
   { name: "transition-all", severity: "low", confidence: CONFIDENCE.QUALITY, mode: CONCENTRATION, minCount: 2, pattern: /\btransition-all\b|transition\s*:\s*all[\s;]/gi, fix: "Name the properties: `transition-[background-color,box-shadow] duration-150` animates the same thing and removes no motion.", desc: "transition-all (animates every property, layout ones included)" },
+  // Springs are the tool, not the tell: a linear() spring token, a single-overshoot curve
+  // and an unread curve token stay clean. The tell is a keyword bounce or elastic animation,
+  // animate-bounce, a curve that anticipates AND overshoots, or keyframes that reverse
+  // direction twice. Low severity: the doctrine weighs it against the action's gravity.
+  { name: "bounce-easing", severity: "low", confidence: CONFIDENCE.SMELL, mode: PRESENCE, hits: bounceEasingHits, fix: "Ease out with an exponential curve or a spring token that settles once; match the motion's energy to the action it confirms.", desc: "Bounce or elastic easing (keyword animation, animate-bounce, overshooting curve)" },
+  { name: "marquee", severity: "low", confidence: CONFIDENCE.SMELL, mode: PRESENCE, hits: marqueeHits, fix: "Show the items as a static row, or scroll only on demand with a visible pause control; perpetual motion taxes attention.", desc: "Auto-scrolling horizontal loop (marquee)" },
+  { name: "pulsing-dot", severity: "medium", confidence: CONFIDENCE.SMELL, mode: PRESENCE, hits: pulsingDotHits, fix: "Let liveness show in the content (rows arriving, a timestamp updating); if the brief asks for a live badge, mark the line anti-slop-allow.", desc: "Small round dot pulsing forever (the generated live badge)" },
   // A deliberate uniform 5rem rhythm is a real design decision, which is why this is low
   // severity at three hits: one py-20 beside a py-12 and a py-32 is a rhythm, not a default.
   { name: "uniform-section-padding", severity: "low", confidence: CONFIDENCE.SMELL, mode: CONCENTRATION, minCount: 3, pattern: /\bpy-(?:20|24)\b/gi, fix: "Vary the vertical rhythm by what each section holds; a dense table does not want the same air as a hero.", desc: "Same section padding on every section (uncommitted vertical rhythm)" },
@@ -429,7 +661,7 @@ export const CODE_PATTERNS = [
   // (token: "punctuation"), validation messages, and env-indirection strings.
   { name: "hardcoded-secret", severity: "high", confidence: CONFIDENCE.SMELL, skipInTests: true, pattern: /(?:\b|(?<=_))(?:(?:api|secret|access|private)[_-]?key(?:[_-]?(?:id|base))?|password|passwd|secret|token)(?:\s+As\s+String)?\s*[:=]\s*['"](?!\/|https?:|\.\.?\/|var\(|--|#[0-9a-fA-F])(?=[^'"\s]{8,}['"])(?:(?=(?:[^'"]*[0-9]){3})|(?=[^'"]*[-_])(?=[^'"]*[A-Za-z])(?=[^'"]*[0-9])|(?=(?:sk-|pk-|ghp_|xox))|(?=[A-Za-z0-9+/=]{20,}['"]))[^'"\s]{8,}['"]/gi, fix: "Read it from the environment or a secrets manager, and rotate any value that reached a commit", desc: "Possible hardcoded credential" },
   { name: "console-log-emoji", severity: "medium", confidence: CONFIDENCE.QUALITY, pattern: new RegExp(`console\\.log\\s*\\(\\s*['"][^\\n]*${EMOJI_ATOM}`, "gu"), fix: "Use a word for the status (`PASS`, `FAIL`, `WARNING`); a glyph in a log line outlives the session that printed it.", desc: "Emoji inside a console.log string (breaks log parsers, reads as generated)" },
-  { name: "img-no-dimensions", severity: "medium", confidence: CONFIDENCE.HARD, pattern: /<img\s(?![^>]*(?:width|height))[^>]*>/gi, fix: "Give the image its intrinsic `width` and `height` (or an `aspect-ratio`) so the browser reserves the box before it loads.", desc: "<img> without width/height (causes CLS)" },
+  { name: "img-no-dimensions", severity: "medium", confidence: CONFIDENCE.HARD, blankComments: true, pattern: /<img\s(?![^>]*(?:width|height))[^>]*>/gi, fix: "Give the image its intrinsic `width` and `height` (or an `aspect-ratio`) so the browser reserves the box before it loads.", desc: "<img> without width/height (causes CLS)" },
   { name: "useeffect-setstate", severity: "medium", confidence: CONFIDENCE.SMELL, pattern: /useEffect\s*\(\s*\(\s*\)\s*=>\s*\{[^}]*set[A-Z]\w*\s*\(/g, fix: "Derive the value during render instead of storing it; keep the effect for work that genuinely reaches outside React.", desc: "useEffect setting state (likely derived state)" },
   // AI-tell code patterns from the corpus study (high precision when present)
   { name: "chat-artifact", severity: "high", confidence: CONFIDENCE.HARD, pattern: /\bhere'?s the (updated|complete|full|fixed|revised|new) (code|version|implementation|file)\b|\bas an? (ai|a\.i\.) (language )?model\b|\b(good|great) catch!|\byou'?re absolutely right\b|\bi hope this helps\b/gi, fix: "Delete every line that is the assistant talking, both the preamble and the closing offer.", desc: "Leftover chat artifact (assistant voice in code)" },
@@ -575,6 +807,17 @@ export const VB_PATTERNS = [
   { name: "vb-warning-suppression", scope: "file", severity: "medium", confidence: CONFIDENCE.QUALITY, pattern: /^[ \t]*#Disable[ \t]+Warning\b/gim, fix: "Fix the warning; where a suppression is genuinely right, say why on the line and re-enable it right after.", desc: "#Disable Warning instead of a fix" },
 ];
 
+// ── "X theater" ──
+// Dismissing a practice as theater without saying what it fails to do. The head words are
+// the practices the framing is aimed at; both spellings count. A Title Case pair is a name
+// (a venue, a company), so the pattern reads case itself instead of using the `i` flag: the
+// head word may be capitalised at a sentence start, or "Theater" may be, but not both.
+const THEATER_HEADS = ["accessibility", "accountability", "agile", "alignment", "compliance", "diversity", "engagement", "governance", "growth", "hiring", "hygiene", "innovation", "inclusion", "kindness", "leadership", "metrics", "privacy", "process", "productivity", "quality", "safety", "security", "strategy", "sustainability", "transparency", "trust", "wellness"];
+const THEATER_PATTERN = new RegExp(
+  `\\b(?:(?:${THEATER_HEADS.map((w) => `[${w[0]}${w[0].toUpperCase()}]${w.slice(1)}`).join("|")})\\s+theat(?:er|re)|(?:${THEATER_HEADS.join("|")})\\s+Theat(?:er|re))\\b`,
+  "g",
+);
+
 // ── Text constructs (prose only): regex-detectable sentence/format tells ──
 // Severity follows the corpus ranking. Emitted only after prose noise-stripping
 // (code fences, quotes, blockquotes, frontmatter, and escape-hatch lines blanked).
@@ -613,6 +856,7 @@ export const TEXT_CONSTRUCTS = [
   // The prose half of the code table's entry of the same name: same rule, same severity,
   // reached on .md the way chat-artifact is reached on .js.
   { name: "model-tooling-artifact", severity: "high", confidence: CONFIDENCE.HARD, mode: PRESENCE, pattern: MODEL_TOOLING_ARTIFACT, fix: "Delete the token; where it stood in for a real citation, write the citation.", desc: "Model tooling/citation artifact leaked into the output" },
+  { name: "theater-slop-phrase", severity: "low", confidence: CONFIDENCE.SMELL, mode: PRESENCE, pattern: THEATER_PATTERN, fix: "Say what the practice fails to do and what that costs; calling it theater dismisses it without showing why.", desc: "Dismissive 'X theater' framing (security theater, growth theatre)" },
   // The 2026 register is the mirror image of the 2024 one: short plain Anglo-Saxon words
   // used metaphorically to manufacture weight, rather than inflated words standing in for
   // plain ones. NONE of the bare words belongs in BANNED_WORDS -- `real`, `shape`, `signal`,
@@ -622,6 +866,14 @@ export const TEXT_CONSTRUCTS = [
   // single collocation is the writer's own prose.
   { name: "plain-aiism-collocation", severity: "low", confidence: CONFIDENCE.SMELL, mode: CONCENTRATION, minCount: 2, pattern: /\bquietly\s+(?:building|becoming|dominat\w*|transform\w*|reshap\w*|chang\w*|eating)\b|\b(?:this|that)\s+matters\s+because\b|\bwhy\s+(?:this|that|it)\s+matters\b|\bearn(?:s|ed|ing)?\s+the\s+right\s+to\b|\b(?:decisions?|actions?|benefits?|effects?|gains?|habits?)\s+compound\b|\bbuilt\s+different\b|\bthe\s+pull\s+of\b|\bhold(?:s|ing)?\s+space\b|\bsends?\s+(?:a|the)\s+signal\s+that\b|\bdo\s+the\s+work\b/gi, fix: "Say the literal thing the metaphor stands in for; a single collocation is the writer's own prose, and only a cluster is the tell.", desc: "Plain-word metaphor cluster ('quietly building', 'why this matters', 'decisions compound')" },
 ];
+
+// ── Rule ids a scoped waiver may name ──
+// `anti-slop-allow: <id>[, <id>] -- <reason>` waives only the named table rules on its line
+// (design-detect parseWaiver). A marker without ` -- ` is free text and waives the whole
+// line, as it always has; the prose families are line-wide for any marker.
+export const KNOWN_RULE_IDS = new Set([
+  ...DESIGN_PATTERNS, ...NATIVE_PATTERNS, ...CODE_PATTERNS, ...TEXT_CONSTRUCTS,
+].map((r) => r.name).concat(["emoji", "em-dash-density"]));
 
 // ── Context Exceptions ──
 // If any of these domain words appear in the file, the banned word is likely legitimate

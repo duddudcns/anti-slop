@@ -147,7 +147,8 @@ change made only downstream is drift, not a change.
 |---|---|---|
 | Empirical rankings, corpus evidence, cleared memes | **anti-slop** | anti-slop -> both toolkits (unchanged) |
 | The labeled corpus and its fixtures (all modalities) | **anti-slop** | anti-slop -> ui-craft. `ui-craft/tests/corpus/` is a downstream VIEW of the shared design fixtures, not a second hand-maintained set |
-| Scanner rules, thresholds, firing modes | **anti-slop** | Local. No toolkit consumes `rules.mjs` |
+| Scanner rules, thresholds, firing modes | **anti-slop** | Local. `rules.mjs` stays this scanner's own table; the detectors and parsers it calls live in the shared module below |
+| Shared detection module (`scripts/lib/design-detect.mjs`) | **anti-slop** | anti-slop -> ui-craft as a byte-identical vendored copy (`scripts/lib/design-detect.mjs`, behind a one-line vendor header naming the anti-slop version and commit), checked by ui-craft's selftest and its release gate. Edit it here, never in the copy |
 | Confidence classes (the four-class enum) | **anti-slop**, adopted from ui-craft | Originated in `ui-craft/references/review/01-universal-rubric.md`; the definition now lives in `references/confidence-and-evidence.md` and the toolkits track it |
 | Presence vs concentration, and the floor rule | **anti-slop**, adopted from ui-craft | Same. Thresholds are anti-slop's because only anti-slop has a machine that enforces them |
 | Geometry evidence rule, not-assessed rule | **shared, defined here** | Adopted from both toolkits' evidence pipelines; `references/confidence-and-evidence.md` is the single definition and the toolkits cite their own copies for their own agents |
@@ -184,3 +185,27 @@ here first and propagates outward, per the table above. Two known asymmetries st
 deliberate omissions rather than pending work: ui-craft's own files carry the material in
 its house voice rather than as a verbatim mirror, and the hero scroll-indicator tell has no
 ui-craft catalogue entry -- fleet coverage for it comes from this scanner's rule.
+
+### Shared detection and its fixtures, 2.5.0
+
+2.5.0 moved the parsing, colour maths and the new detectors into `scripts/lib/design-detect.mjs`
+so the two scanners run one implementation of each rule: contrast on declared surfaces, the
+side stripe, the type floors, the reading mechanics, bounce easing, the pulsing dot, the
+glow test, the card trio, the cream legs, the primary face and the rule-scoped waiver.
+Several of those re-express rules from [impeccable](https://github.com/pbakaus/impeccable)
+(Copyright 2025 Paul Bakaus, Apache-2.0); the module's header names them, and the README
+carries the notice.
+
+The fixtures move the usual way, anti-slop -> ui-craft, as byte-for-byte copies with
+ui-craft's own labels:
+
+| Fixture | Change in 2.5.0 | ui-craft copy |
+|---|---|---|
+| `contrast-pairs.html`, `contrast-clean.html`, `contrast-ground.html`, `contrast-ground-clean.html` | New pairs for the contrast rules | Copy both pairs |
+| `side-stripe-cards.html`, `side-stripe-clean.html` | New pair for the side stripe | Copy |
+| `type-floors.html`, `type-floors-clean.html` | New pair for the type floors | Copy |
+| `reading-mechanics.html`, `reading-mechanics-clean.html` | New shared pair for the four reading-mechanics rules | Copy |
+| `motion-bounce.html`, `motion-spring-clean.html`, `live-dot.html`, `live-dot-clean.html` | New pairs for bounce easing and the pulsing dot | Copy |
+| `fluid-adaptive-clean.html`, `viewport-query-card.html`, `fixed-desktop-shell.html`, `vh-bottom-bar.html`, `uncommitted-radius.html`, `token-drift.html` | Real contrast failures corrected (values in each label note) | Replace the copy |
+| `cream-serif-sage.html`, `legacy-marketing-page.html` | The planted Inter moved onto content copy (a control-only face is the label fallback); the hero gained its sub-line | Replace the copy |
+| `frosted-nav-neon.html`, `gradient-hero.html`, `shadcn-card-kit.html`, `small-avatar-clean.html` | The viewport meta the ui-craft copies already carried | Already identical |

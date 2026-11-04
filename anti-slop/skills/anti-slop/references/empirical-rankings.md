@@ -218,7 +218,9 @@ Read the columns as: **scanner rule** = a deterministic rule exists and fires on
 | Missing alt, `outline: none`, dead controls | Yes (2.1.0) | Yes | no |
 | Pinch-zoom lock in the viewport meta, positive `tabindex` | Yes (2.4.0, `viewport-zoom-lock`, `positive-tabindex`) | Yes | no |
 | Physical properties where logical ones belong (RTL), hardcoded user-visible strings, inputs without a matching type | **No** | Yes | no |
-| Contrast ratios, tap-target sizes, keyboard reachability | **No** | Partly (arithmetic from source literals only) | **Yes** for any asserted number |
+| Text contrast on a declared surface | Partly (2.5.0, `low-contrast`, `low-contrast-near-bar`: declared CSS, inline styles and CSS-in-JS only) | Partly (arithmetic from source literals only) | **Yes** for a rendered page |
+| Tap-target sizes, keyboard reachability | **No** | Partly (arithmetic from source literals only) | **Yes** for any asserted number |
+| Side stripes, type below the legibility floor, reading mechanics, bounce easing, the pulsing live dot | Yes (2.5.0, `side-stripe-accent`, `text-size-floor`, `tight-leading`, `wide-tracking`, `justified-narrow-column`, `crushed-tracking`, `bounce-easing`, `pulsing-dot`; the type rules read one block at a time) | Yes | no |
 | Missing empty/error/loading states, cross-file component coherence | **No** | Partly (needs the sibling files) | no |
 | Density and waste: viewport utilisation, page length, action distance | **No** | Taste note only, unless source literals give arithmetic | **Yes** for a graded finding |
 | Native fixed geometry, idiom branching, fixed grid columns, repeating symbol effects, fixed font sizes | Yes | Yes | no |

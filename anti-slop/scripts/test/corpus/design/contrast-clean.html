@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delivery windows</title>
+<style>
+  :root { --radius: 6px; }
+  body { margin: 0; background: #ffffff; color: #1f2937; font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+  main { max-width: 40rem; margin: 0 auto; padding: 2rem 1rem; }
+  .hero { background: linear-gradient(135deg, oklch(0.45 0.1 200), oklch(0.35 0.08 230)); color: #ffffff; border-radius: var(--radius); padding: 1.5rem; }
+  .btn { background: oklch(0.48 0.12 75); color: #ffffff; font-size: 16px; border: 0; border-radius: var(--radius); padding: 0.5rem 1rem; }
+  .btn:hover { background: oklch(0.42 0.12 75); }
+  button:disabled { color: #9ca3af; }
+  .tag { background: #f1f5f9; color: #475569; border-radius: var(--radius); padding: 0.125rem 0.5rem; }
+  label { display: block; font-weight: 600; margin-top: 1.5rem; }
+  input { background: #ffffff; color: #1f2937; border: 1px solid #6b7280; border-radius: var(--radius); padding: 0.5rem; }
+  input::placeholder { color: #6b7280; }
+  .card { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 1rem; margin-top: 1.5rem; }
+  .card .meta { color: #94a3b8; }
+</style>
+</head>
+<body>
+<main>
+  <div class="hero">
+    <h1>Delivery windows</h1>
+    <p>Pick a slot for Thursday. <span class="tag">Same day</span></p>
+  </div>
+  <button class="btn" type="button">Book 14:00 to 16:00</button>
+  <button class="btn" type="button" disabled>Book 16:00 to 18:00</button>
+  <label for="note">Note for the driver</label>
+  <input id="note" name="note" type="text" placeholder="Gate code, parking">
+  <div class="card">
+    <p>Thursday, 14:00 to 16:00</p>
+    <p class="meta">Driver assigned the evening before</p>
+  </div>
+</main>
+</body>
+</html>

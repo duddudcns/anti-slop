@@ -192,6 +192,15 @@ AI trying to sound casual, opinionated, or irreverent while maintaining perfectl
 
 The fix is boring. That's the point. A README intro should say what the tool does. The edgy framing adds personality that reads as manufactured because it is.
 
+### Dismissing a Practice as Theater
+
+Calling a practice theater (`security theater`, `growth theatre`, `process theater`) to dismiss it without saying what it fails to do. The word carries the verdict, so the sentence never has to show the gap between what the practice claims and what it achieves, and the reader is asked to share a sneer instead of a finding.
+
+**Slop:** "Most of the quarterly review is `growth theatre`."
+**Fix:** "The quarterly review shows the same three charts each time and never asks why trial sign-ups stopped rising."
+
+Say what the practice fails to do and what that costs. The scanner rule is `theater-slop-phrase` (low, Pattern smell), on a practice word followed by theater or theatre in either spelling; a Title Case name such as a venue or a company is not the framing, and neither is a theater of operations.
+
 ### Equivocation ("Both Sides")
 
 Presenting every topic as having two equally valid sides. Refusing to take a position.

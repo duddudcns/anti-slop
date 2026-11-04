@@ -1,0 +1,15 @@
+:root {
+  --paper: oklch(0.98 0.005 280);
+  --ink: oklch(0.22 0.02 280);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Söhne", system-ui, sans-serif;
+}
+
+.hero {
+  font-family: "Lobster", cursive;
+  font-size: 3rem;
+}

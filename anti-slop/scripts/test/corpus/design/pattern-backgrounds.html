@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Launch week</title>
+<style>
+  body { margin: 0; background: #ffffff; color: #1f2937; font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: linear-gradient(oklch(0.92 0 0) 1px, transparent 1px), linear-gradient(90deg, oklch(0.92 0 0) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+  main { position: relative; max-width: 40rem; margin: 0 auto; padding: 2rem 1rem; }
+  .hero { background: radial-gradient(circle, oklch(0.85 0 0) 1px, transparent 1px) 0 0 / 16px 16px; padding: 2rem 1rem; }
+  .promo { background: repeating-linear-gradient(45deg, oklch(0.95 0.02 80) 0 8px, transparent 8px 16px); padding: 1rem; }
+</style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <h1>Launch week</h1>
+    <p>Five releases, one each morning.</p>
+  </section>
+  <section class="promo">
+    <p>Monday: exports keep your column order.</p>
+  </section>
+</main>
+</body>
+</html>

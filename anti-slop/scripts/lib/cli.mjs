@@ -6,9 +6,10 @@
 // `git diff --name-only | xargs node .../slop-scanner.mjs scan`.
 
 import { readFileSync } from "fs";
-import { extname } from "path";
+import { extname, relative } from "path";
 import { scanContent, calculateScore, verdict, proseScope, proseScopeFor } from "./scan.mjs";
-import { PROSE_EXTENSIONS, PROSE_SCOPES } from "./rules.mjs";
+import { findDesignMd, readDesignSystem } from "./design-detect.mjs";
+import { PROSE_EXTENSIONS, PROSE_SCOPES, CODE_EXTENSIONS, WEB_SURFACE_EXTENSIONS, NATIVE_UI_EXTENSIONS } from "./rules.mjs";
 import { loadLog, saveLog, saveScores, loadScores } from "./store.mjs";
 
 const FAIL_ON_LEVELS = ["any", "high", "medium", "low", "none"];
@@ -42,6 +43,11 @@ Scan options:
 Scans take files only -- no glob or directory recursion; pipe a file list in:
 
   git diff --name-only --diff-filter=d | xargs node .../slop-scanner.mjs scan
+
+Output:
+  The report goes to stdout: text, or one JSON object with --format json.
+  Coverage notes, which name what a static scan of a file type cannot see, go
+  to stderr in text mode and into the JSON "coverage" array. --quiet drops both.
 
 Exit codes:
   0  no findings at or above --fail-on threshold
@@ -124,6 +130,46 @@ function recordRun(results, allEntriesByFile) {
   saveScores([{ score: worst, file, violations }]);
 }
 
+// ── Coverage notes ──
+// A clean scan of a component file is not a clean component: the contrast and type rules
+// read declared CSS, and a Tailwind utility or a parent stylesheet in another file is not
+// declared here. The note names the blind spot per file type, so a clean result reads as
+// the floor it is. Stdout stays the report; the notes go to stderr (text) or `coverage` (JSON).
+const COMPONENT_EXTENSIONS = new Set([".jsx", ".tsx", ".js", ".ts", ".mjs", ".cjs", ".vue", ".svelte", ".astro"]);
+const STYLESHEET_EXTENSIONS = new Set([".css", ".scss", ".less"]);
+const COVERAGE_NOTES = {
+  component: "contrast and type metrics read declared CSS, inline styles and CSS-in-JS only; Tailwind utilities and cross-file cascades are not resolved",
+  stylesheet: "markup rules (missing-alt, classAll fingerprints) do not apply",
+  code: "design tells not run (not a UI surface)",
+};
+const COVERAGE_FLOOR = "A clean result is a floor: this is a static scan of declared source, not a rendered page.";
+
+function coverageNote(filePath) {
+  const ext = extname(filePath).toLowerCase();
+  if (COMPONENT_EXTENSIONS.has(ext)) return COVERAGE_NOTES.component;
+  if (STYLESHEET_EXTENSIONS.has(ext)) return COVERAGE_NOTES.stylesheet;
+  if (CODE_EXTENSIONS.has(ext) && !WEB_SURFACE_EXTENSIONS.has(ext) && !NATIVE_UI_EXTENSIONS.has(ext)) return COVERAGE_NOTES.code;
+  return null;
+}
+
+function coverageOf(files, designSystems) {
+  const byNote = new Map();
+  const add = (note, file) => {
+    if (!byNote.has(note)) byNote.set(note, []);
+    byNote.get(note).push(file);
+  };
+  for (const file of files) {
+    const note = coverageNote(file);
+    if (note) add(note, file);
+    const ds = designSystems.get(file);
+    if (ds && ds.purpleArc && ds.purpleArc.length && WEB_SURFACE_EXTENSIONS.has(extname(file).toLowerCase())) {
+      const names = ds.purpleArc.map((p) => `${p.name} (${p.hex})`).join(", ");
+      add(`purple palette: ${relative(process.cwd(), ds.path) || ds.path} declares ${names}; purple within 15 degrees of its hue is the palette`, file);
+    }
+  }
+  return [...byNote].map(([note, list]) => ({ note, files: list }));
+}
+
 function formatSkippedLine(filePath, scope) {
   return `${filePath}: skipped (prose scope: ${scope})\n`;
 }
@@ -151,7 +197,10 @@ function formatFinding(v) {
   const facts = [ruleId(v)];
   // Every family carries a line; a violation from an embedder that somehow does not gets
   // the rest of its context rather than the string "line null".
-  if (Number.isInteger(v.line)) facts.push(`line ${v.line}`);
+  // A finding that spans several lines names each of them (up to the 20 the scanner keeps),
+  // so a concentration finding is checkable without hunting for the other hits.
+  if (Array.isArray(v.lines) && v.lines.length > 1) facts.push(`lines ${v.lines.join(", ")}`);
+  else if (Number.isInteger(v.line)) facts.push(`line ${v.line}`);
   if (v.confidence) facts.push(v.confidence);
   const head = `[${v.severity.toUpperCase()}] ${v.desc}  (${facts.join(", ")})`;
   return v.fix ? `${head}\n  fix: ${v.fix}` : head;
@@ -281,7 +330,8 @@ export async function runCli(argv) {
   // used to scan it twice, record it twice, and double-count it in the totals.
   opts.files = [...new Set(opts.files)];
 
-  const scanOpts = { collectSuppressed: true, proseScope: opts.proseScope };
+  const warnings = [];
+  const scanOpts = { collectSuppressed: true, proseScope: opts.proseScope, warnings };
   const scope = proseScope(scanOpts);
   // Scope is decided BEFORE any file is opened: a prose file outside the project's
   // user-facing list is reported as skipped, never as clean, contributes nothing to the
@@ -308,11 +358,14 @@ export async function runCli(argv) {
 
   const results = [];
   const allEntriesByFile = new Map();
+  const designSystems = new Map();
   for (const filePath of toScan) {
     const content = contents.get(filePath);
+    const designSystem = readDesignSystem(findDesignMd(filePath));
+    designSystems.set(filePath, designSystem);
     // Suppressed entries (escape hatch / allowedWords) are logged under --record for rule
     // stats, but never reach output, score, or exit code.
-    const allEntries = scanContent(content, filePath, scanOpts);
+    const allEntries = scanContent(content, filePath, { ...scanOpts, designSystem });
     const violations = allEntries.filter((v) => !v.suppressed);
     const score = calculateScore(violations);
     const tier = classifyVerdict(content, filePath, violations);
@@ -335,6 +388,12 @@ export async function runCli(argv) {
 
   const shouldFail = results.some((r) => meetsThreshold(r.violations, opts.failOn));
 
+  if (!opts.quiet) {
+    for (const w of warnings) {
+      process.stderr.write(`${w.file}:${w.line}: anti-slop-allow names unknown rule id(s) ${w.unknown.join(", ")}; the waiver suppresses nothing\n`);
+    }
+  }
+
   // --quiet owns stdout, not stderr: a run that scanned nothing must say so somewhere, or a
   // docs-only CI change passes green with empty output having read no files at all.
   if (opts.quiet && results.length === 0 && skipped.length > 0) {
@@ -342,10 +401,13 @@ export async function runCli(argv) {
   }
 
   if (!opts.quiet) {
+    const coverage = coverageOf(results.map((r) => r.file), designSystems);
     if (opts.format === "json") {
       const skippedRows = skipped.map((file) => ({ file, reason: "prose-scope", scope }));
-      process.stdout.write(`${JSON.stringify({ files: results, totals, skipped: skippedRows })}\n`);
+      process.stdout.write(`${JSON.stringify({ files: results, totals, skipped: skippedRows, coverage })}\n`);
     } else {
+      for (const { note, files } of coverage) process.stderr.write(`coverage: ${note} (${files.length} file${files.length === 1 ? "" : "s"})\n`);
+      if (coverage.length) process.stderr.write(`${COVERAGE_FLOOR}\n`);
       // Input order, so a skipped file sits where the caller listed it.
       const byFile = new Map(results.map((r) => [r.file, r]));
       for (const filePath of opts.files) {

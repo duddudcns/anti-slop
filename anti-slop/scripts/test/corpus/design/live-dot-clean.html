@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Queue</title>
+<style>
+  :root { --radius: 2px; }
+  body { margin: 0; background: #ffffff; color: #1f2937; font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+  main { max-width: 40rem; margin: 0 auto; padding: 2rem 1rem; }
+  .eq-bar { display: inline-block; width: 4px; height: 24px; border-radius: var(--radius); background: oklch(0.62 0.17 145); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: oklch(0.62 0.17 145); }
+  .node { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: oklch(0.62 0.17 145); }
+  .spinner { width: 24px; height: 24px; border-radius: 50%; border: 3px solid #d1d5db; border-top-color: #374151; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (prefers-reduced-motion: no-preference) {
+    .eq-bar { animation: eq 1s ease-in-out infinite; }
+    .dot { animation: pulse 1.6s ease-in-out 1; }
+    .node { animation: float 3s ease-in-out infinite; }
+    .spinner { animation: spin 1s linear infinite; }
+  }
+  @keyframes eq { 0%, 100% { height: 8px; } 50% { height: 24px; } }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+  @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .spinner { animation: spin 3s linear infinite; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Support queue</h1>
+  <p><span class="eq-bar" aria-hidden="true"></span> Playing the hold music</p>
+  <p><span class="dot" aria-hidden="true"></span> Agent joined</p>
+  <p><span class="node" aria-hidden="true"></span> Ticket moved to review</p>
+  <div class="spinner" role="status"><span class="sr-only">Loading the queue</span></div>
+</main>
+</body>
+</html>

@@ -65,6 +65,14 @@
       "recall": 1
     },
     {
+      "rule": "background-pattern",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
       "rule": "banner-comment",
       "tp": 1,
       "fp": 0,
@@ -90,6 +98,14 @@
     },
     {
       "rule": "bootstrap-default-blue",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
+      "rule": "bounce-easing",
       "tp": 1,
       "fp": 0,
       "fn": 0,
@@ -137,6 +153,14 @@
       "recall": 1
     },
     {
+      "rule": "crushed-tracking",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
       "rule": "dangerous-inner-html",
       "tp": 1,
       "fp": 0,
@@ -178,6 +202,14 @@
     },
     {
       "rule": "deprecated-api",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
+      "rule": "design-system-font",
       "tp": 1,
       "fp": 0,
       "fn": 0,
@@ -353,6 +385,14 @@
       "recall": 1
     },
     {
+      "rule": "gray-on-color",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
       "rule": "great question",
       "tp": 1,
       "fp": 0,
@@ -473,6 +513,14 @@
       "recall": 1
     },
     {
+      "rule": "justified-narrow-column",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
       "rule": "let's dive in",
       "tp": 1,
       "fp": 0,
@@ -482,6 +530,30 @@
     },
     {
       "rule": "listicle-scaffold",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
+      "rule": "low-contrast",
+      "tp": 3,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
+      "rule": "low-contrast-near-bar",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
+      "rule": "marquee",
       "tp": 1,
       "fp": 0,
       "fn": 0,
@@ -561,6 +633,14 @@
       "recall": 1
     },
     {
+      "rule": "pulsing-dot",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
       "rule": "purple-blue-gradient",
       "tp": 2,
       "fp": 0,
@@ -570,6 +650,14 @@
     },
     {
       "rule": "purple-gradient-default",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
+      "rule": "radial-halo",
       "tp": 1,
       "fp": 0,
       "fn": 0,
@@ -625,6 +713,22 @@
       "recall": 1
     },
     {
+      "rule": "side-stripe-accent",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
+      "rule": "skipped-heading",
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
       "rule": "stock-illustration",
       "tp": 1,
       "fp": 0,
@@ -666,6 +770,30 @@
     },
     {
       "rule": "tailwind-hero-triplet",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
+      "rule": "text-size-floor",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
+      "rule": "theater-slop-phrase",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
+      "rule": "tight-leading",
       "tp": 1,
       "fp": 0,
       "fn": 0,
@@ -761,6 +889,14 @@
       "recall": 1
     },
     {
+      "rule": "wide-tracking",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    {
       "rule": "z-index-escalation",
       "tp": 1,
       "fp": 0,
@@ -780,7 +916,7 @@
     },
     {
       "modality": "design",
-      "tp": 54,
+      "tp": 73,
       "fp": 0,
       "fn": 0,
       "precision": 1,
@@ -796,7 +932,7 @@
     },
     {
       "modality": "prose",
-      "tp": 26,
+      "tp": 27,
       "fp": 0,
       "fn": 0,
       "precision": 1,
@@ -804,10 +940,10 @@
     }
   ],
   "overall": {
-    "tp": 120,
+    "tp": 140,
     "fp": 0,
     "fn": 1,
     "precision": 1,
-    "recall": 0.9917355371900827
+    "recall": 0.9929078014184397
   }
 }

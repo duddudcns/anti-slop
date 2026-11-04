@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Customers</title>
+<style>
+  body { margin: 0; background: #ffffff; color: #1f2937; font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+  main { max-width: 48rem; margin: 0 auto; padding: 2rem 1rem; overflow: hidden; }
+  .track { display: flex; gap: 3rem; width: max-content; }
+  @media (prefers-reduced-motion: no-preference) {
+    .track { animation: scroll 30s linear infinite; }
+  }
+  @keyframes scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Used by these teams</h1>
+  <div class="track">
+    <img src="logo-harbour.svg" alt="Harbour Freight" width="120" height="32">
+    <img src="logo-fieldline.svg" alt="Fieldline" width="120" height="32">
+    <img src="logo-copperkettle.svg" alt="Copper Kettle" width="120" height="32">
+    <img src="logo-harbour.svg" alt="" width="120" height="32">
+    <img src="logo-fieldline.svg" alt="" width="120" height="32">
+    <img src="logo-copperkettle.svg" alt="" width="120" height="32">
+  </div>
+</main>
+</body>
+</html>

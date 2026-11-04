@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delivery windows</title>
+<style>
+  :root { --radius: 6px; }
+  body { margin: 0; background: #ffffff; color: #1f2937; font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+  main { max-width: 40rem; margin: 0 auto; padding: 2rem 1rem; }
+  .btn { background: oklch(0.68 0.14 75); color: #ffffff; font-size: 16px; border: 0; border-radius: var(--radius); padding: 0.5rem 1rem; }
+  .btn:hover { background: oklch(0.74 0.12 75); }
+  .tag { background: #f1f5f9; color: #6b7280; border-radius: var(--radius); padding: 0.125rem 0.5rem; }
+  .card { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 1rem; margin-top: 1.5rem; }
+  .card .meta { color: #64748b; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Delivery windows</h1>
+  <p>Pick a slot for Thursday. <span class="tag">Same day</span></p>
+  <button class="btn" type="button">Book 14:00 to 16:00</button>
+  <div class="card">
+    <p>Thursday, 14:00 to 16:00</p>
+    <p class="meta">Driver assigned the evening before</p>
+  </div>
+</main>
+</body>
+</html>

@@ -203,9 +203,10 @@ test("frosted-glass-nav: an opaque nav and a split-across-elements near-miss sta
   assert.ok(!fires("frosted-glass-nav", '<div class="backdrop-blur-md"></div><nav class="bg-white/80 border-b"></nav>', "nav.html"));
 });
 
+// Since 2.5.0 the trio fires as the surface's card treatment (three cards, or every card of
+// a two-card surface), so the order-free match is asserted across two cards.
 test("shadow-border-rounded-combo: Strongest-10 entry 1 fires in either order", () => {
-  assert.ok(fires("shadow-border-rounded-combo", '<div class="rounded-xl shadow-sm border p-6">', "card.html"));
-  assert.ok(fires("shadow-border-rounded-combo", '<div class="shadow-sm border rounded-xl p-6">', "card.html"));
+  assert.ok(fires("shadow-border-rounded-combo", '<div class="rounded-xl shadow-sm border p-6">a</div>\n<div class="shadow-sm border rounded-xl p-6">b</div>', "card.html"));
 });
 
 test("shadow-border-rounded-combo: two of the three tokens, or a cross-element split, stay silent", () => {
@@ -349,4 +350,114 @@ test("assistant-boilerplate: the assistant's own refusals, cutoff lines and disc
   ]) {
     assert.ok(fires("assistant-boilerplate", line, "notes.md"), line);
   }
+});
+
+// ── Comments are not the page (2.5.0) ────────────────────────────────────────
+// Design, native and markup-defect rules read comment-blanked text; the escape hatch is
+// still read from the raw line, where its marker lives.
+
+test("design rules never match inside a CSS comment", () => {
+  const commented = "/* old radii, kept for reference:\n   border-radius: 8px;\n   border-radius: 8px;\n   border-radius: 8px; */\n.a { color: red; }";
+  assert.ok(!scanContent(commented, "commented.css").some((v) => v.name === "uniform-literal-radius"));
+  const live = ".a { border-radius: 8px; }\n.b { border-radius: 8px; }\n.c { border-radius: 8px; }";
+  assert.ok(scanContent(live, "live.css").some((v) => v.name === "uniform-literal-radius"), "the same radii uncommented");
+});
+
+test("markup-defect rules never match inside an HTML comment", () => {
+  const html = '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>\n<!-- TODO: swap in <img src="hero.png"> once the asset lands -->\n<p>Hi</p>\n</body></html>';
+  const got = scanContent(html, "commented.html").map((v) => v.name || v.type);
+  assert.ok(!got.includes("missing-alt") && !got.includes("img-no-dimensions"), JSON.stringify(got));
+  const live = '<!doctype html><html><body>\n<img src="hero.png">\n</body></html>';
+  const twin = scanContent(live, "live.html").map((v) => v.name || v.type);
+  assert.ok(twin.includes("missing-alt") && twin.includes("img-no-dimensions"), JSON.stringify(twin));
+});
+
+test("a file guard reads blanked text: tokens named only in a comment are not a scale", () => {
+  const tsx = "// --space-1: 4px; --space-2: 8px;\nexport const A = () => <div style={{ padding: '13px', margin: '13px' }} />;\n";
+  assert.ok(!scanContent(tsx, "A.tsx").some((v) => v.name === "token-drift-spacing"));
+});
+
+test("native rules never match inside a Swift comment", () => {
+  assert.ok(!scanContent("// let w = UIScreen.main.bounds.width\nlet x = 1\n", "View.swift").some((v) => v.name === "uiscreen-bounds"));
+  assert.ok(scanContent("let w = UIScreen.main.bounds.width\n", "View.swift").some((v) => v.name === "uiscreen-bounds"));
+});
+
+test("the escape hatch inside a comment still reaches the tell on its line", () => {
+  const html = '<h1 class="bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-cyan-500"><!-- anti-slop-allow: registered wordmark -->Halcyon</h1>';
+  assert.deepEqual(scanContent(html, "a.html").filter((v) => v.name === "gradient-text"), []);
+  const suppressed = scanContent(html, "a.html", { collectSuppressed: true }).filter((v) => v.suppressed);
+  assert.deepEqual(suppressed.map((v) => v.name), ["gradient-text"]);
+});
+
+// ── Banned phrases match whole words (2.5.0) ─────────────────────────────────
+
+test("banned phrases: a phrase inside a longer word is not the phrase", () => {
+  const phrases = (text) => scanContent(text, "post.md").filter((v) => v.type === "banned-phrase").map((v) => v.phrase);
+  assert.deepEqual(phrases("Results come back within today's window."), []);
+  assert.deepEqual(phrases("In today's market, prices move."), ["in today's"]);
+  assert.deepEqual(phrases("The rule is a beacon of nothing."), ["a beacon of"]);
+  assert.deepEqual(phrases("Absolutely! It works."), ["absolutely!"], "a phrase ending in punctuation keeps its leading boundary only");
+});
+
+test("banned phrases: plurals still match, as the substring search did", () => {
+  const phrases = (text) => scanContent(text, "post.md").filter((v) => v.type === "banned-phrase").map((v) => v.phrase);
+  assert.deepEqual(phrases("These game-changers matter."), ["game-changer"]);
+  assert.deepEqual(phrases("Two deep dives later."), ["deep dive"]);
+  assert.deepEqual(phrases("A deep diver surfaced."), [], "a longer word is still not the phrase");
+});
+
+// CSS or markup quoted as text inside <code> or <pre> is an example, not the page.
+test("design rules never match CSS quoted in <code> or <pre> on an HTML page", () => {
+  const html = '<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>\n' +
+    "<p>The default looks like <code>background: linear-gradient(135deg, #6366f1, #8b5cf6)</code> with <code>-webkit-background-clip: text</code>.</p>\n" +
+    "<pre>.a { border-radius: 8px; }\n.b { border-radius: 8px; }\n.c { border-radius: 8px; }</pre>\n</body></html>";
+  assert.deepEqual(scanContent(html, "css-in-prose.html").filter((v) => v.type === "design-tell"), []);
+  const live = "<style>.a { border-radius: 8px; } .b { border-radius: 8px; } .c { border-radius: 8px; } h1 { -webkit-background-clip: text; }</style>";
+  const twin = scanContent(live, "live.html").map((v) => v.name);
+  assert.ok(twin.includes("uniform-literal-radius") && twin.includes("gradient-text"), JSON.stringify(twin));
+});
+
+// ── Narrowings found on real files (2.5.0) ───────────────────────────────────
+// Each exemption beside the twin it must not swallow.
+
+const ruleHits = (rule, content, path) => scanContent(content, path).filter((v) => v.name === rule);
+
+test("tight-leading: a close or dismiss control keeps its one-line leading; a body block does not", () => {
+  assert.deepEqual(ruleHits("tight-leading", ".tab-close { font-size: 14px; line-height: 1 }", "a.css"), []);
+  assert.equal(ruleHits("tight-leading", ".tab-body { font-size: 14px; line-height: 1 }", "a.css").length, 1);
+});
+
+test("the file's markup tells a class or attribute selector which element it styles", () => {
+  const dismiss = (el) => `<style>[data-dismiss] { font-size: 14px; line-height: 1 }</style>${el}`;
+  assert.deepEqual(ruleHits("tight-leading", dismiss('<button data-dismiss type="button">Close</button>'), "a.html"), [], "a button");
+  assert.equal(ruleHits("tight-leading", dismiss("<p data-dismiss>The ferry leaves at eleven and reaches the island a little after midnight, every night of the week.</p>"), "a.html").length, 1);
+  const stripe = (el) => `<style>.history-item { border-left: 3px solid #0f766e; border-radius: 10px }</style>${el}`;
+  assert.deepEqual(ruleHits("side-stripe-accent", stripe('<ul><li class="history-item">x</li></ul>'), "a.html"), [], "list items");
+  assert.equal(ruleHits("side-stripe-accent", stripe('<div class="history-item">x</div>'), "a.html").length, 1, "the same class on a div");
+});
+
+test("side-stripe-accent: an invalid field's edge is state, and a control is a control", () => {
+  assert.deepEqual(ruleHits("side-stripe-accent", '.field[aria-invalid="true"] { border-left: 3px solid #b91c1c }', "a.css"), []);
+  assert.deepEqual(ruleHits("side-stripe-accent", ".input { border-left: 3px solid #b91c1c }", "a.css"), []);
+  assert.equal(ruleHits("side-stripe-accent", ".note { border-left: 3px solid #b91c1c }", "a.css").length, 1);
+  assert.equal(ruleHits("side-stripe-accent", ".inset { border-left: 3px solid #b91c1c }", "a.css").length, 1, "a word that only starts like input");
+});
+
+test("text-size-floor: a utility class name is a style, not running text", () => {
+  assert.deepEqual(ruleHits("text-size-floor", ".text-xs { font-size: 11px }", "a.css"), []);
+  assert.equal(ruleHits("text-size-floor", ".body-text { font-size: 11px }", "a.css").length, 1);
+});
+
+// A device-code readout from a real page: a furniture word in the selector outranks the
+// element the markup names, and a tabular or select-all block is a readout, not running text.
+test("wide-tracking: a code readout is a label, and running text tracked the same still fires", () => {
+  const readout = ".code { font-family: var(--display); font-size: var(--t-code); font-weight: 600; letter-spacing: 0.22em; padding-inline-end: 0.22em; font-variant-numeric: tabular-nums lining-nums; line-height: 1.2; color: var(--ink); -webkit-user-select: all; user-select: all; word-break: break-word; }";
+  assert.deepEqual(ruleHits("wide-tracking", readout, "login.css"), []);
+  assert.deepEqual(ruleHits("wide-tracking", `<style>${readout}</style><p class="code">The code below signs this device in for the next hour of use.</p>`, "login.html"), [],
+    "the class word wins over the markup-derived subject");
+  assert.equal(ruleHits("wide-tracking", ".intro p { letter-spacing: 0.2em }", "a.css").length, 1, "the twin");
+  assert.deepEqual(ruleHits("wide-tracking", ".digits { letter-spacing: 0.2em; font-variant-numeric: tabular-nums }", "a.css"), [], "a tabular readout");
+  assert.deepEqual(ruleHits("wide-tracking", ".token { letter-spacing: 0.2em; user-select: all }", "a.css"), [], "text set to copy whole");
+  assert.equal(ruleHits("wide-tracking", ".digits { letter-spacing: 0.2em }", "a.css").length, 1, "the same selector with no readout declaration");
+  assert.deepEqual(ruleHits("tight-leading", ".total { font-size: 16px; line-height: 1.1; font-variant-numeric: tabular-nums }", "a.css"), [], "a readout keeps its leading too");
 });

@@ -11,7 +11,7 @@ Not every word in this file is a tell, and treating them all as one was the mist
 | Tier | What it means | What to do |
 |---|---|---|
 | **Single-hit tells** | One occurrence in user-facing prose is a finding | Write the plain word instead |
-| **Cluster tells** | Ordinary words with an inflated sense; a lone hit is the writer's prose, two or more in one document is the tell | Let one pass; thin them out when they gather |
+| **Cluster tells** | Ordinary words with an inflated sense; a lone hit is the writer's prose, and the same cluster-tier word twice in one document is the finding | Let one pass; thin them out when they gather |
 | **Plain-word preferences** | Ordinary English that also has an inflated use. Not a tell in either tier, never flagged by the scanner, and never reported by a reviewer | Prefer the plain word when it says the same thing; keep the word when it is the precise one |
 
 The third tier is the largest, and it exists to say what not to do as much as what to do: a sentence that uses one of those words is not a finding, and a sentence rewritten to dodge one is worse than the original.
@@ -20,7 +20,7 @@ The third tier is the largest, and it exists to say what not to do as much as wh
 
 **Register note:** Frequency data is based primarily on American English corpora. In British English formal prose, some words on this list (renowned, featuring) may be standard. Apply judgment for non-American registers. In academic and formal writing contexts, consult the Context Exceptions in SKILL.md before applying these bans.
 
-**Concentration caveat:** A hand-audited Reddit corpus (see `empirical-rankings.md`) found several high-frequency "AI words" are almost never what readers actually flag: `however` / `thus` / `hence` match about 6% of posts but are cited as a tell 0% of the time; the same holds for `nuanced`, `when it comes to`, `utilize`, `navigate`, `comprehensive`, and `robust`. The single words there are the cluster tier; `when it comes to` and `however` / `thus` / `hence` are on no scanner list at all. One `utilize` is the writer's prose; six fancy verbs in one paragraph is slop. The scanner reflects this: a cluster-tier word does not lower the score on a single hit.
+**Concentration caveat:** A hand-audited Reddit corpus (see `empirical-rankings.md`) found several high-frequency "AI words" are almost never what readers actually flag: `however` / `thus` / `hence` match about 6% of posts but are cited as a tell 0% of the time; the same holds for `nuanced`, `when it comes to`, `utilize`, `navigate`, `comprehensive`, and `robust`. The single words there are the cluster tier; `when it comes to` and `however` / `thus` / `hence` are on no scanner list at all. One `utilize` is the writer's prose, and the same cluster-tier word twice in one document is the finding; the scanner reports nothing for a single hit. Six different fancy verbs in one paragraph read as slop too, but no scanner rule counts across words, so that case is the reviewer's to catch.
 
 ## Single-hit tells
 

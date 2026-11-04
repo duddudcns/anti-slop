@@ -16,7 +16,8 @@
       "authored-here-in-2.1.0": "marketing-defaults, motion-rhythm, gallery-unlabelled, legacy-theme.css, tokens-clean.css, hatched-wordmark, near-miss-controls (design); render-user-card.tsx, ingest_records.py, pasted-snippet.js, hatched-onboarding.js, order-lookup.py, safe-render.tsx, safe-pipeline.py (code); native/LegacyProfileView, native/MeasuredCardStack; plain-register, plain-register-clean (prose). Five design fixtures were also PROMOTED from coverage-boundary to positive in the same release -- uncommitted-radius, token-drift, missing-states, fixed-desktop-shell, vh-bottom-bar -- because 2.1.0 shipped a rule for the tell each of them had been recording as unreachable.",
       "authored-here-in-2.2.1": "bootstrap-unthemed.css, chosen-border-gray.css, hero-scroll-poster.html (design). The first two are the positive/clean-control pair the 2.2.0 Bootstrap rule shipped without; the third is the positive for hero-scroll-hint, which 2.2.1 split out of generic-microcopy.",
       "authored-here-in-2.2.2": "site-settings.py and config-labels.py (code): the positive/clean-control pair for the hardcoded-secret key widening to snake_case, SCREAMING_CASE and *_KEY names. first-person-idioms-clean.md (prose): the clean control for the assistant-boilerplate narrowing (a person's idioms and a third-person statement of a model's cutoff stay silent).",
-      "authored-here-in-2.4.0": "zoom-lock-tabindex.html and viewport-clean.html (design): the positive/clean-control pair for viewport-zoom-lock and positive-tabindex, the two accessibility rules 2.4.0 added. cast-to-any.ts and typed-narrowing.ts (code): the pair for cast-to-any, the TypeScript sibling of catch-any."
+      "authored-here-in-2.4.0": "zoom-lock-tabindex.html and viewport-clean.html (design): the positive/clean-control pair for viewport-zoom-lock and positive-tabindex, the two accessibility rules 2.4.0 added. cast-to-any.ts and typed-narrowing.ts (code): the pair for cast-to-any, the TypeScript sibling of catch-any.",
+      "authored-here-in-2.5.0": "contrast-pairs, contrast-clean, contrast-ground, contrast-ground-clean, side-stripe-cards, side-stripe-clean, type-floors, type-floors-clean, reading-mechanics, reading-mechanics-clean, motion-bounce, motion-spring-clean, live-dot, live-dot-clean (design): the positive and clean-control pairs for the rules 2.5.0 added, several of them re-expressed from impeccable (Apache-2.0; see the README third-party notice). Fixtures that carried a real contrast failure were corrected, editorial-bold for a 10.5px table header, cream-serif-sage and legacy-marketing-page for the control-face doctrine, and the shared fixtures that had drifted gained the viewport meta their ui-craft copies already carried; each corrected entry's note records the change."
     }
   },
   "fixtures": [
@@ -512,7 +513,7 @@
           "confidence": "Hard defect"
         }
       ],
-      "note": "The dimensionless <img> was always planted here; it became reachable in 2.1.0, when .html joined the code surfaces. Before that, img-no-dimensions -- a CLS rule whose entire target syntax is <img> -- could not fire on plain HTML at all."
+      "note": "The dimensionless <img> was always planted here; it became reachable in 2.1.0, when .html joined the code surfaces. Before that, img-no-dimensions -- a CLS rule whose entire target syntax is <img> -- could not fire on plain HTML at all. Fixture corrected 2026-10 (anti-slop 2.5.0): the hero gained its sub-line with class=\"subtitle\", so the planted .subtitle Inter is set on live copy rather than dead CSS; the labels are unchanged."
     },
     {
       "file": "design/small-avatar-clean.html",
@@ -598,7 +599,7 @@
           "confidence": "Pattern smell"
         }
       ],
-      "note": "The tasteful-default combination in full: cream background + Instrument Serif display + sage accent, so all three legs fire the combination rule. generic-font also fires on the Inter button face; ui-craft accepts that as a permitted T1 fallback, anti-slop's rule does not distinguish fallback from primary, and the label records what this scanner actually reports."
+      "note": "The tasteful-default combination in full: cream background + Instrument Serif display + sage accent, so all three legs fire the combination rule. generic-font also fires on the Inter button face; ui-craft accepts that as a permitted T1 fallback, anti-slop's rule does not distinguish fallback from primary, and the label records what this scanner actually reports. Fixture corrected 2026-10 (anti-slop 2.5.0): the planted Inter moved from .btn to the hero line (.lede), because a reflex face set only on a control is the permitted UI label fallback when the page sets another face for its content; the generic-font label is unchanged."
     },
     {
       "file": "design/clean-intentional.html",
@@ -614,7 +615,7 @@
       "role": "clean-control",
       "expected": [],
       "maxIncidentalFindings": 0,
-      "note": "Clean control for the responsive doctrine. Uses every construct the catalogue prescribes -- clamp() ramps, width: min(), auto-fit minmax, container queries, 100dvh, safe-area insets, a visible focus ring -- and must produce ZERO findings."
+      "note": "Clean control for the responsive doctrine. Uses every construct the catalogue prescribes -- clamp() ramps, width: min(), auto-fit minmax, container queries, 100dvh, safe-area insets, a visible focus ring -- and must produce ZERO findings. Contrast corrected 2026-10 (anti-slop 2.5.0): --ochre oklch(0.68 0.14 75) -> oklch(0.558 0.14 75), 2.81:1 -> 4.56:1 on --paper; the planted construct is unchanged."
     },
     {
       "file": "design/uncommitted-radius.html",
@@ -627,7 +628,7 @@
           "confidence": "Quality defect"
         }
       ],
-      "note": "Plants D1, an uncommitted 8px radius on every control, as three LITERAL border-radius declarations with no --radius token anywhere in the file. Promoted from coverage-boundary in 2.1.0: uniform-literal-radius reads exactly that shape, and is silenced on any file that states a radius identity. rounded-everything still does not see it -- that rule keys on rounded-2xl/3xl/full and 999px pills."
+      "note": "Plants D1, an uncommitted 8px radius on every control, as three LITERAL border-radius declarations with no --radius token anywhere in the file. Promoted from coverage-boundary in 2.1.0: uniform-literal-radius reads exactly that shape, and is silenced on any file that states a radius identity. rounded-everything still does not see it -- that rule keys on rounded-2xl/3xl/full and 999px pills. Contrast corrected 2026-10 (anti-slop 2.5.0): --moss oklch(0.55 0.13 145) -> oklch(0.541 0.13 145), 4.46:1 -> 4.63:1 against its button text; the planted construct is unchanged."
     },
     {
       "file": "design/token-drift.html",
@@ -640,7 +641,7 @@
           "confidence": "Quality defect"
         }
       ],
-      "note": "Plants hardcoded off-token colours and off-scale spacing that bypass the file's own token system. Promoted from coverage-boundary in 2.1.0 for the spacing half: three --space tokens declared and three off-4px-grid raw values (11px, 17px, 9px). The off-token COLOURS remain unruled and this fixture must not be cited as evidence that they are clean."
+      "note": "Plants hardcoded off-token colours and off-scale spacing that bypass the file's own token system. Promoted from coverage-boundary in 2.1.0 for the spacing half: three --space tokens declared and three off-4px-grid raw values (11px, 17px, 9px). The off-token COLOURS remain unruled and this fixture must not be cited as evidence that they are clean. Contrast corrected 2026-10 (anti-slop 2.5.0): .save background oklch(0.587 0.104 159) -> oklch(0.543 0.104 159), 3.79:1 -> 4.55:1; .save:hover background oklch(0.639 0.11 160) -> oklch(0.5 0.11 160), 3.07:1 -> 5.43:1; .hint oklch(0.578 0.006 107) -> oklch(0.554 0.006 107), 4.31:1 -> 4.77:1 on white (the literals stay literals, so the off-token tell is intact); the planted construct is unchanged."
     },
     {
       "file": "design/missing-states.html",
@@ -671,7 +672,7 @@
           "confidence": "Quality defect"
         }
       ],
-      "note": "Plants a fixed-pixel page shell that cannot resize: width: 1200px on the shell, width: 640px on the lede, grid-template-columns: repeat(3, 360px). Promoted from coverage-boundary in 2.1.0 -- the web analogue of the shipped native fixed-content-frame and fixed-grid-columns rules."
+      "note": "Plants a fixed-pixel page shell that cannot resize: width: 1200px on the shell, width: 640px on the lede, grid-template-columns: repeat(3, 360px). Promoted from coverage-boundary in 2.1.0 -- the web analogue of the shipped native fixed-content-frame and fixed-grid-columns rules. Contrast corrected 2026-10 (anti-slop 2.5.0): --signal oklch(0.58 0.16 40) -> oklch(0.571 0.16 40), 4.40:1 -> 4.57:1 on --paper; the planted construct is unchanged."
     },
     {
       "file": "design/viewport-query-card.html",
@@ -679,7 +680,7 @@
       "role": "coverage-boundary",
       "expected": [],
       "maxIncidentalFindings": 0,
-      "note": "Plants a component laid out by a viewport media query where a container query belongs."
+      "note": "Plants a component laid out by a viewport media query where a container query belongs. Contrast corrected 2026-10 (anti-slop 2.5.0): --ember oklch(0.6 0.16 30) -> oklch(0.571 0.16 30), 4.04:1 -> 4.56:1 on --paper; the planted construct is unchanged."
     },
     {
       "file": "design/vh-bottom-bar.html",
@@ -692,7 +693,7 @@
           "confidence": "Quality defect"
         }
       ],
-      "note": "Plants a 100vh surface whose fixed bottom bar ignores dvh and the safe-area inset. Promoted from coverage-boundary in 2.1.0. The rule is file-scoped rather than line-scoped because the progressive-enhancement idiom writes its fallback on the next line; the missing env(safe-area-inset-bottom) on the bar itself stays unruled."
+      "note": "Plants a 100vh surface whose fixed bottom bar ignores dvh and the safe-area inset. Promoted from coverage-boundary in 2.1.0. The rule is file-scoped rather than line-scoped because the progressive-enhancement idiom writes its fallback on the next line; the missing env(safe-area-inset-bottom) on the bar itself stays unruled. Contrast corrected 2026-10 (anti-slop 2.5.0): --harbor oklch(0.55 0.11 215) -> oklch(0.536 0.11 215), 4.45:1 -> 4.70:1 against its button text; the planted construct is unchanged."
     },
     {
       "file": "design/bootstrap-unthemed.css",
@@ -772,37 +773,51 @@
           "id": "uniform-literal-radius",
           "severity": "low",
           "confidence": "Quality defect"
+        },
+        {
+          "id": "low-contrast",
+          "severity": "high",
+          "confidence": "Quality defect"
+        },
+        {
+          "id": "skipped-heading",
+          "severity": "medium",
+          "confidence": "Quality defect"
         }
       ],
-      "note": "rounded-everything was REMOVED as a label in 1.7.0 for the same reason as frosted-nav-neon.html: two border-radius:999px declarations (.btn and .pill) is not maximal rounding on every control. uniform-literal-radius was ADDED in 2.1.0 and is a different claim about the same file: four literal border-radius values and no --radius token to vary from. Everything else on this fixture still fires."
+      "note": "rounded-everything was REMOVED as a label in 1.7.0 for the same reason as frosted-nav-neon.html: two border-radius:999px declarations (.btn and .pill) is not maximal rounding on every control. uniform-literal-radius was ADDED in 2.1.0 and is a different claim about the same file: four literal border-radius values and no --radius token to vary from. Everything else on this fixture still fires. The low-contrast label (anti-slop 2.5.0) records a defect the page always carried: white on the #a855f7 primary button measures 3.96:1. The purple stays, because it is a planted ai-purple-hex leg. The skipped-heading label (anti-slop 2.5.0) records the feature cards' h3 headings straight under the h1."
     },
     {
       "file": "../fixtures/editorial-bold.html",
       "modality": "design",
       "role": "clean-control",
       "expected": [],
-      "maxIncidentalFindings": 0
+      "maxIncidentalFindings": 0,
+      "note": "Type floor corrected 2026-10 (anti-slop 2.5.0): table.invoices thead th font-size 10.5px -> 11px, the functional-text floor; the planted construct is unchanged."
     },
     {
       "file": "../fixtures/technical-mono.html",
       "modality": "design",
       "role": "clean-control",
       "expected": [],
-      "maxIncidentalFindings": 0
+      "maxIncidentalFindings": 0,
+      "note": "Contrast corrected 2026-10 (anti-slop 2.5.0): --ink-faint #6b727f -> #858d9a, 3.17:1 -> 4.59:1 on --surface-2; the planted construct is unchanged. Its engineering grid is the fixture's stated brand surface, and since anti-slop 2.5.0 its background-image line carries the scoped waiver anti-slop-allow: background-pattern -- engineering grid is the stated brand surface. Heading outline corrected 2026-10 (anti-slop 2.5.0): the values section label became an h2 (font-weight 400 keeps its look), so the feature h3s no longer sit straight under the h1; the planted construct is unchanged."
     },
     {
       "file": "../fixtures/warm-consumer.html",
       "modality": "design",
       "role": "clean-control",
       "expected": [],
-      "maxIncidentalFindings": 0
+      "maxIncidentalFindings": 0,
+      "note": "Contrast corrected 2026-10 (anti-slop 2.5.0): --brand #c8553d -> #c45139, white text 4.35:1 -> 4.58:1; --overdue #c8553d -> #a8412e (its own --brand-deep), 3.37:1 -> 4.70:1 on --overdue-bg; --sent #b9791a -> #995b00, 3.02:1 -> 4.56:1 on --sent-bg; --ink-faint #9a8377 -> #7e685c, 3.12:1 -> 4.56:1 on --surface-warm and 3.35:1 -> 4.90:1 on --bg; the planted construct is unchanged."
     },
     {
       "file": "../fixtures/utilitarian-fintech.html",
       "modality": "design",
       "role": "clean-control",
       "expected": [],
-      "maxIncidentalFindings": 0
+      "maxIncidentalFindings": 0,
+      "note": "Contrast corrected 2026-10 (anti-slop 2.5.0): --signal #e8590c -> #d34500, white text 3.58:1 -> 4.54:1; --ink-400 #828995 -> #6c727e, 3.52:1 -> 4.83:1 on white and 3.34:1 -> 4.59:1 on --surface-100; the planted construct is unchanged."
     },
     {
       "file": "native/FixedGeometryShell.swift",
@@ -1165,6 +1180,27 @@
       "note": "Near-miss control for the prose rules added or widened in 2.1.0: 'Interest compounds annually' (subject outside the collocation list), 'held the space open' (not the bare metaphor), 'The signal that the sensor emits' (not 'sends a signal that'), a single collocation (below minCount), 'It's not about money.' as one clause with no second clause to complete the antithesis, and a [1] footnote, a :::note admonition and an attributedString identifier, none of which is a model tooling token."
     },
     {
+      "file": "prose/theater-framing.md",
+      "modality": "prose",
+      "role": "positive",
+      "expected": [
+        {
+          "id": "theater-slop-phrase",
+          "severity": "low",
+          "confidence": "Pattern smell"
+        }
+      ],
+      "note": "Positive for theater-slop-phrase (anti-slop 2.5.0): security theater and growth theatre, each dismissing a practice without saying what it fails to do; both spellings."
+    },
+    {
+      "file": "prose/theater-literal.md",
+      "modality": "prose",
+      "role": "clean-control",
+      "expected": [],
+      "maxIncidentalFindings": 0,
+      "note": "Clean partner of theater-framing.md: two Title Case venue and company names built on a head word, the Southern Theater Command, an opera house called the official theater of the city, and a theater of operations."
+    },
+    {
       "file": "design/zoom-lock-tabindex.html",
       "modality": "design",
       "role": "positive",
@@ -1189,6 +1225,299 @@
       "expected": [],
       "maxIncidentalFindings": 0,
       "note": "The correct form of both 2.4.0 accessibility rules: width=device-width with initial-scale=1 and nothing else, tabindex=\"0\" joining the natural order, tabindex=\"-1\" on a script-focused region, and a maximum-scale=5 cap that still leaves the user a usable zoom range."
+    },
+    {
+      "file": "design/contrast-pairs.html",
+      "modality": "design",
+      "role": "positive",
+      "expected": [
+        {
+          "id": "low-contrast",
+          "severity": "high",
+          "confidence": "Quality defect"
+        },
+        {
+          "id": "low-contrast-near-bar",
+          "severity": "low",
+          "confidence": "Quality defect"
+        }
+      ],
+      "note": "Positive for the contrast pair (anti-slop 2.5.0). Block tier: .btn white on oklch(0.68 0.14 75) at 2.94:1; :hover tier: .btn:hover takes its text colour from .btn, 2.35:1; ancestor tier: .card .meta #64748b on .card #0f172a at 3.75:1; near-bar: .tag #6b7280 on #f1f5f9 at 4.41:1. Every other pair passes, and body text is #1f2937 on white."
+    },
+    {
+      "file": "design/contrast-clean.html",
+      "modality": "design",
+      "role": "clean-control",
+      "expected": [],
+      "maxIncidentalFindings": 0,
+      "note": "Clean partner of contrast-pairs.html: the same selectors at passing values (.btn 6.65:1, .btn:hover 8.59:1, .tag 6.92:1, .card .meta 6.96:1), one step from each planted pair. It also carries the constructs the rule must leave alone or measure correctly: a disabled button (exempt), a gradient hero surface (not measured), and a labelled field whose placeholder is measured and passes at 4.83:1."
+    },
+    {
+      "file": "design/contrast-ground.html",
+      "modality": "design",
+      "role": "positive",
+      "expected": [
+        {
+          "id": "low-contrast",
+          "severity": "high",
+          "confidence": "Quality defect"
+        }
+      ],
+      "note": "Positive for the page-ground tier (anti-slop 2.5.0): the page ground is the file's only painted surface, so .note #8a8a8a measures against it at 3.45:1. A file that paints any other surface switches this tier off, which is why the case has its own fixture."
+    },
+    {
+      "file": "design/contrast-ground-clean.html",
+      "modality": "design",
+      "role": "clean-control",
+      "expected": [],
+      "maxIncidentalFindings": 0,
+      "note": "Clean partner of contrast-ground.html: .note #6b6b6b at 5.33:1 on the page ground, and a 28px bold .display #8f8f8f at 3.23:1, which clears the large-text bar of 3:1 (the same colour at body size is the exemption's should-flag twin in rule-additions.test.mjs)."
+    },
+    {
+      "file": "design/side-stripe-cards.html",
+      "modality": "design",
+      "role": "positive",
+      "expected": [
+        {
+          "id": "side-stripe-accent",
+          "severity": "medium",
+          "confidence": "Pattern smell"
+        }
+      ],
+      "note": "Positive for side-stripe-accent (anti-slop 2.5.0): one stripe per producer. A 4px border-left on a rounded card, a 3px border-inline-start on a blockquote with no radius (unknown radius keeps the finding), a 4px absolute ::before bar, an inset 4px side shadow, and a rounded-xl border-l-4 border-teal-600 class set. Radii go through --radius."
+    },
+    {
+      "file": "design/side-stripe-clean.html",
+      "modality": "design",
+      "role": "clean-control",
+      "expected": [],
+      "maxIncidentalFindings": 0,
+      "note": "Clean partner of side-stripe-cards.html, one step from each producer: a neutral 2px rule on timeline list items, a selected tab's edge, a live region's severity edge, a uniform 1px card border, a 1px divider, a bottom-border spinner (role=status with a hidden label), and border-l-4 on a button and on a table cell."
+    },
+    {
+      "file": "design/type-floors.html",
+      "modality": "design",
+      "role": "positive",
+      "expected": [
+        {
+          "id": "text-size-floor",
+          "severity": "medium",
+          "confidence": "Quality defect"
+        }
+      ],
+      "note": "Positive for text-size-floor (anti-slop 2.5.0): an 11px paragraph of running text under .article p (reading floor 12px), a 0.625rem price note and 10px footer links (functional floor 11px)."
+    },
+    {
+      "file": "design/type-floors-clean.html",
+      "modality": "design",
+      "role": "clean-control",
+      "expected": [],
+      "maxIncidentalFindings": 0,
+      "note": "Clean partner of type-floors.html: an 11px uppercase eyebrow and an 11px .post-meta row (functional, at the floor), a 10px footnote marker (sup is exempt), 10px small print inside .legal (small-print floor 10px), 12px code and an em-sized caption (not judged)."
+    },
+    {
+      "file": "design/reading-mechanics.html",
+      "modality": "design",
+      "role": "positive",
+      "expected": [
+        {
+          "id": "tight-leading",
+          "severity": "low",
+          "confidence": "Quality defect"
+        },
+        {
+          "id": "wide-tracking",
+          "severity": "low",
+          "confidence": "Quality defect"
+        },
+        {
+          "id": "justified-narrow-column",
+          "severity": "low",
+          "confidence": "Quality defect"
+        },
+        {
+          "id": "crushed-tracking",
+          "severity": "low",
+          "confidence": "Quality defect"
+        }
+      ],
+      "note": "Shared positive for the four reading-mechanics rules (anti-slop 2.5.0), one construct each: .article p at 16px with line-height 1.15 over a long paragraph, .note p tracked 0.12em in mixed case, .sidebar-note justified at 22ch with no hyphens, and .hero h1 at 32px with letter-spacing -0.1em. A rule cut from a release has its construct removed from this file in the same commit, or its label kept with no severity as a known false negative."
+    },
+    {
+      "file": "design/reading-mechanics-clean.html",
+      "modality": "design",
+      "role": "clean-control",
+      "expected": [],
+      "maxIncidentalFindings": 0,
+      "note": "Clean partner of reading-mechanics.html, one step from each construct: a tight 20px heading, 22px lead text at 1.2, a 12px badge and preformatted code at 1.25, a bold card title; caps, small-caps, Japanese and button tracking; justify on a 65ch measure and on a hyphenated 18rem column; -0.05em on 56px display type, -0.02em on a title and a -0.08em wordmark."
+    },
+    {
+      "file": "design/motion-bounce.html",
+      "modality": "design",
+      "role": "positive",
+      "expected": [
+        {
+          "id": "bounce-easing",
+          "severity": "low",
+          "confidence": "Pattern smell"
+        }
+      ],
+      "note": "Positive for bounce-easing (anti-slop 2.5.0): a bounce-in toast whose keyframes rise and fall twice, a menu transition on cubic-bezier(0.68, -0.55, 0.265, 1.55) (anticipation and overshoot), and an animate-bounce scroll cue. The motion is opted in under prefers-reduced-motion: no-preference."
+    },
+    {
+      "file": "design/motion-spring-clean.html",
+      "modality": "design",
+      "role": "clean-control",
+      "expected": [],
+      "maxIncidentalFindings": 0,
+      "note": "Clean partner of motion-bounce.html: a linear() spring token that is read, an elastic --ease-bounce token that nothing reads, a single-overshoot pop curve, a skeleton named bounce-soft whose keyframes only fade and shrink, and a float that rises and settles once."
+    },
+    {
+      "file": "design/live-dot.html",
+      "modality": "design",
+      "role": "positive",
+      "expected": [
+        {
+          "id": "pulsing-dot",
+          "severity": "medium",
+          "confidence": "Pattern smell"
+        }
+      ],
+      "note": "Positive for pulsing-dot (anti-slop 2.5.0): an 8px round .live-dot running an infinite opacity and scale pulse beside the word Live (the animation is opted in under no-preference and the box lives in the base rule), and an h-2 w-2 rounded-full animate-ping span."
+    },
+    {
+      "file": "design/live-dot-clean.html",
+      "modality": "design",
+      "role": "clean-control",
+      "expected": [],
+      "maxIncidentalFindings": 0,
+      "note": "Clean partner of live-dot.html, one step from each gate: a 4x24px equaliser bar (not a dot), an 8px dot that pulses once, a 12px dot that floats (it moves), and a 24px spinner (over 16px, role=status with a hidden label). Every infinite animation is opted in under no-preference."
+    },
+    {
+      "file": "design/marquee-logos.html",
+      "modality": "design",
+      "role": "positive",
+      "expected": [
+        {
+          "id": "marquee",
+          "severity": "low",
+          "confidence": "Pattern smell"
+        }
+      ],
+      "note": "Positive for marquee (anti-slop 2.5.0): a row of customer logos carried 50% sideways by an infinite linear keyframes loop, opted in under prefers-reduced-motion: no-preference."
+    },
+    {
+      "file": "design/marquee-clean.html",
+      "modality": "design",
+      "role": "clean-control",
+      "expected": [],
+      "maxIncidentalFindings": 0,
+      "note": "Clean partner of marquee-logos.html: a one-shot slide-in heading, a notice that rises once (finite), and a scroll-snap rail the reader moves by hand."
+    },
+    {
+      "file": "design/pattern-backgrounds.html",
+      "modality": "design",
+      "role": "positive",
+      "expected": [
+        {
+          "id": "background-pattern",
+          "severity": "low",
+          "confidence": "Pattern smell"
+        }
+      ],
+      "note": "Positive for background-pattern (anti-slop 2.5.0): a two-axis hairline grid on a 24px tile behind the page, a 1px dot field on a 16px tile behind the hero, and repeating 45deg stripes behind a promo strip."
+    },
+    {
+      "file": "design/pattern-backgrounds-clean.html",
+      "modality": "design",
+      "role": "clean-control",
+      "expected": [],
+      "maxIncidentalFindings": 0,
+      "note": "Clean partner of pattern-backgrounds.html: one tiled hairline (a ruled-paper rule, not a grid), a repeating gradient that runs its whole length and paints once, and a plain two-colour gradient."
+    },
+    {
+      "file": "design/radial-halo.html",
+      "modality": "design",
+      "role": "positive",
+      "expected": [
+        {
+          "id": "radial-halo",
+          "severity": "low",
+          "confidence": "Pattern smell"
+        }
+      ],
+      "note": "Positive for radial-halo (anti-slop 2.5.0): on a #0b0b10 page, the hero sits on a cyan radial gradient that starts at 0.8 alpha and fades to transparent."
+    },
+    {
+      "file": "design/radial-halo-clean.html",
+      "modality": "design",
+      "role": "clean-control",
+      "expected": [],
+      "maxIncidentalFindings": 0,
+      "note": "Clean partner of radial-halo.html, on the same dark page: a translucent wash (first stop at 0.3 alpha) and a single untiled radial gradient with a 1px stop (a spot, not a halo, and not a tiled dot field). The same halo on a light page is the should-pass twin in rule-additions.test.mjs."
+    },
+    {
+      "file": "design/gray-on-color.html",
+      "modality": "design",
+      "role": "positive",
+      "expected": [
+        {
+          "id": "gray-on-color",
+          "severity": "low",
+          "confidence": "Pattern smell"
+        }
+      ],
+      "note": "Positive for gray-on-color (anti-slop 2.5.0): text-gray-300 on bg-blue-800 in one class set, and .promo #d1d5db on #1e40af, which passes contrast at 5.92:1 so the fixture plants only this tell."
+    },
+    {
+      "file": "design/gray-on-color-clean.html",
+      "modality": "design",
+      "role": "clean-control",
+      "expected": [],
+      "maxIncidentalFindings": 0,
+      "note": "Clean partner of gray-on-color.html: near-black text-gray-700 on a pale bg-amber-100, a slate link whose red is a hover tint, a grey span beside a blue sibling, a ternary with the grey in one arm and the colour in the other, and off-white #e5e7eb on navy."
+    },
+    {
+      "file": "design/skipped-heading.html",
+      "modality": "design",
+      "role": "positive",
+      "expected": [
+        {
+          "id": "skipped-heading",
+          "severity": "medium",
+          "confidence": "Quality defect"
+        }
+      ],
+      "note": "Positive for skipped-heading (anti-slop 2.5.0): h1, h2, then an h4 chosen for its size in the main content."
+    },
+    {
+      "file": "design/skipped-heading-clean.html",
+      "modality": "design",
+      "role": "clean-control",
+      "expected": [],
+      "maxIncidentalFindings": 0,
+      "note": "Clean partner of skipped-heading.html: h1, h2, h3, back up to h2, then a footer whose first heading is an h4, the h2-to-h4 step the footer exemption must clear."
+    },
+    {
+      "file": "design/design-system/drift.css",
+      "modality": "design",
+      "role": "positive",
+      "expected": [
+        {
+          "id": "design-system-font",
+          "severity": "medium",
+          "confidence": "Quality defect"
+        }
+      ],
+      "note": "Positive for design-system-font (anti-slop 2.5.0): the directory's DESIGN.md declares Söhne as the one face, and .hero sets Lobster, a face with no standing in the system. The body keeps the declared face."
+    },
+    {
+      "file": "design/design-system/palette-declared.html",
+      "modality": "design",
+      "role": "clean-control",
+      "expected": [],
+      "maxIncidentalFindings": 0,
+      "note": "Clean control for the DESIGN.md palette exemption (anti-slop 2.5.0): the directory's DESIGN.md declares violet oklch(0.55 0.2 295) as the brand. The exemption is per match: the bg-violet-600 button, the violet-500 to violet-600 gradient and the violet-700 text all sit within 15 degrees of that hue (about 293), so each is the documented palette rather than the framework default, while an indigo or fuchsia match would still fire. The same file outside that directory fires ai-purple-class and purple-gradient-default, the exemption's twin in rule-additions.test.mjs."
     },
     {
       "file": "code/cast-to-any.ts",

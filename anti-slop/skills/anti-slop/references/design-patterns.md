@@ -17,7 +17,7 @@ Trust comment share over post share when they disagree (comments are 100% on-top
 
 The current top emerging tell, and the one most lists miss. A warm cream/beige page background + a serif display font (Instrument Serif, Fraunces, Playfair Display) + a single saturated accent, often with a generated product-screenshot card to the right. This is the look the *previous* wave of anti-AI advice converged on, so it now signals "AI tried to be tasteful." It reacts harder than purple ever did, precisely because it looks like a choice: being told it is a default lands worse than being told purple is.
 
-**The accent leg moved.** Through 2025 the third leg was sage or forest green. By mid-2026 the reporting that named this style names **rusty orange and terracotta** instead, on the same cream ground and with the same serif display. Both are current; the accent is the leg that drifts, and the other two are stable. Treat the family as {cream, serif display, *a warm saturated accent*} rather than pinning the hue, or this section will be one cycle stale again by the next refresh.
+**The accent leg moved.** Through 2025 the third leg was sage or forest green. By mid-2026 the reporting that named this style names **rusty orange and terracotta** instead, on the same cream ground and with the same serif display. Both are current; the accent is the leg that drifts, and cream and serif are stable. The clay accent is the weaker of the two, because a warm editorial ground with a brick or ochre accent is also a common human choice, and the replacement hues recommended for AI purple sit in the same band. So clay completes the combination only beside the serif display, while sage completes it beside either of the other two.
 
 **Anti-patterns:**
 - Cream/beige page background: hexes like `#faf8f5`, `#f5f1e8`, `#f3eee3`, `#fdfbf7`, or Tailwind `bg-stone-50` / `bg-amber-50` / `bg-orange-50` used as the page surface
@@ -25,9 +25,9 @@ The current top emerging tell, and the one most lists miss. A warm cream/beige p
 - Accent, either wave: sage / forest green (`#15573a`, emerald/green 700-900), or rusty orange / terracotta (`#b7410e`, `#c2410c`, `#9a3412`, `#a0522d`, Tailwind orange/amber 600-800)
 - The screenshot-card-on-the-right hero that ships with it
 
-**The signal is the combination.** Any two of {cream background, serif display, warm accent} together is the strong tell, and that is why `cream-serif-default` is a concentration rule at `minCount: 2`. One alone may be a real decision.
+**The signal is the combination.** Two distinct legs together are the strong tell: cream with serif, cream with sage, serif with sage, or serif with clay. Cream with clay and no serif display is not the combination, and two hits of one leg (two cream hexes, two serif faces) are still one leg. That is why `cream-serif-default` is a concentration rule at `minCount: 2` that counts legs rather than matches. One leg alone may be a real decision.
 
-**Judgment note: the false-positive risk on this one is rising and the confidence class must stay Pattern smell.** The same reporting that identifies this as the generated look also records human 2026 design converging on the same palette independently. A warm editorial site built by a person now matches on two legs. Red is deliberately excluded from the accent leg, because including it would fire on every error state on the web, and the 200-level tints are excluded because a single `bg-amber-50` warning banner is not a palette. The green wave is outside the pattern as well: `cream-serif-default` carries only the warm accent hexes and classes, so sage or forest green on cream is the agent's to catch and not the scanner's.
+**Judgment note: the false-positive risk on this one is rising and the confidence class must stay Pattern smell.** The same reporting that identifies this as the generated look also records human 2026 design converging on the same palette independently. A warm editorial site built by a person now matches on two legs. Red is deliberately excluded from the accent leg, because including it would fire on every error state on the web, and the 200-level tints are excluded because a single `bg-amber-50` warning banner is not a palette. The scanner's sage leg is the one hex the sources name, `#15573a`; the emerald and green 700-900 classes stay out, since `text-green-700` is the web's success colour, so other sage or forest greens on cream are the agent's to catch and not the scanner's.
 
 **Instead:** this is not "pick a different nice palette" (that just resets the clock). Anchor color and type to the real brand or a reference. If none exists, choose a direction that is specific and uncommon rather than the current tasteful average. If warm-editorial cream-and-serif is a genuine, stated decision, keep it and mark the line `anti-slop-allow: <reason>`. See `choosing-with-intent.md`.
 
@@ -61,7 +61,7 @@ AI reaches for Inter, Roboto, or system sans-serif every time. No distinctive pa
 
 **Instead:** A pairing chosen for a reason: the brand's face where one exists, otherwise a display face and a body face picked for this product and named in a comment or a token. Use distinctive weight and size hierarchies. A serif chosen because it is the brand's, or because it fits this product and someone can say why, is a choice; the same serif reached for as the move away from Inter is the counterpart trap two paragraphs down.
 
-**The default sans has broadened past Inter.** `generic-font` matches the geometric-and-neutral set that generated pages reach for interchangeably: Inter, Geist, Roboto, Space Grotesk, Manrope, Plus Jakarta Sans, Outfit, DM Sans. They are all competent faces and none of them is banned; the tell is that swapping one for another is the move a page makes when nobody chose a typeface. **Remediation is a decision with a source**, not a different entry from the same list: the brand's face if there is one, a pairing (a display face plus a separate body face) if there is not, and a stated reason either way. Note that the rule matches on the family name, so `Inter Tight` matches through `Inter`, which is correct: it is the same family.
+**The default sans has broadened past Inter.** `generic-font` matches the geometric-and-neutral set that generated pages reach for interchangeably: Inter, Geist, Roboto, Space Grotesk, Manrope, Plus Jakarta Sans, Outfit, DM Sans. They are all competent faces and none of them is banned; the tell is that swapping one for another is the move a page makes when nobody chose a typeface. **Remediation is a decision with a source**, not a different entry from the same list: the brand's face if there is one, a pairing (a display face plus a separate body face) if there is not, and a stated reason either way. The rule reads the face a block actually sets: the first family of `font-family` or of the `font` shorthand that is not a generic keyword. A system stack never matches, a listed face named only as a fallback never matches, and names are matched whole, so `Inter Tight` (the same family) matches and `Inter Display` (a different cut, and a reasonable alternative) does not. A listed face set only on a button or field label is the UI label fallback, and is not a finding when the page sets another face for its content; on content copy it is.
 
 The counterpart trap is on the other side. Steering off Inter and landing on Instrument Serif or Fraunces is the tasteful default above, and the same non-decision wearing better clothes.
 
@@ -128,7 +128,7 @@ Rounding every corner to the same generous radius. Everything looks like a lozen
 
 **Instead:** Match border radius to the design's personality. Sharp corners feel precise and technical. Gentle rounding (4-6px) works for most UI. Reserve larger radii for specific interactive elements.
 
-**Weight this lightly, on the same grounds as glassmorphism.** In the corpus data "rounded corners / pill buttons everywhere" is 0.8% of comments at **medium** false-positive risk. Rounding is not a defect and most interfaces are rounded. Two rules exist and both are concentration rules for that reason: `rounded-everything` fires at three Tailwind `rounded-2xl` / `rounded-3xl` / `rounded-full` / 999px pills, and `uniform-literal-radius` fires at three literal `border-radius` values in a file that declares no radius token to vary from. A single pill button is a choice, and a file that defines `--radius` and uses it is silenced outright.
+**Weight this lightly, on the same grounds as glassmorphism.** In the corpus data "rounded corners / pill buttons everywhere" is 0.8% of comments at **medium** false-positive risk. Rounding is not a defect and most interfaces are rounded. Two rules exist and both are concentration rules for that reason: `rounded-everything` fires at three Tailwind `rounded-2xl` / `rounded-3xl` / `rounded-full` / 999px pills, and `uniform-literal-radius` fires at three literal `border-radius` values in a file that declares no radius token to vary from. A `0` or `0px` reset is not a radius choice and does not count; `0.5rem` does. A single pill button is a choice, and a file that defines `--radius` and uses it is silenced outright.
 
 **Remediation:** state the radius as a token (`--radius: 8px`) and reference it, or vary it deliberately by control class. The remediation is *stating the decision*, never removing the rounding. A review that ends with square corners nobody asked for was a wrong review.
 
@@ -159,6 +159,30 @@ Hover effects, entrance animations, and transitions on everything. Looks like a 
 
 **Weight this lightly. It is the noisiest entry in the whole UI table.** "Too many animations / Framer fade-ins" is 1.1% of comments at **high** false-positive risk, the only `high` in the corpus ranking, because the complaint is usually a taste disagreement rather than a defect. Flag it when the motion has no state change to communicate, when a duration is plainly out of band, or when there is no `prefers-reduced-motion` handling; the last of those is an accessibility finding and stands on its own. Do not write it up as a count of animations.
 
+### Bounce and Elastic Easing
+
+Keyword bounce and elastic animations, `animate-bounce` on a scroll cue, and the `cubic-bezier(0.68, -0.55, 0.265, 1.55)` curve that winds up and then overshoots. The motion reads as playful on a toast confirming a payment, and that mismatch is the tell: the energy belongs to the action, and generated motion uses one preset for all of them.
+
+**Remediation:** ease out with an exponential curve, or use a spring token that settles once. Springs are the tool, not the tell: a `linear()` spring, a single-overshoot curve like `cubic-bezier(0.34, 1.56, 0.64, 1)`, and a rise that settles once all stay clean.
+
+The scanner rule is `bounce-easing`, low severity, Pattern smell. It fires on an animation named for a bounce, elastic, wobble, jiggle or rubber motion (unless its keyframes only fade and shrink, the way SpinKit's loaders do), on `animate-bounce`, on a curve that both anticipates (y1 below -0.1) and overshoots (y2 above 1.1), used directly or through a custom property something reads, and on keyframes that reverse direction twice or more. Declarations inside `prefers-reduced-motion: reduce` are skipped. The severity is low on purpose: the harm data behind impeccable's `bounce-easing` rule, whose shapes this one re-expresses, is thin, and the judgment that matters is the action's gravity.
+
+### Pulsing Dot
+
+A small round dot that pulses forever beside "Live", "Online" or a count: an 8px circle running an infinite opacity and scale pulse, or `h-2 w-2 rounded-full animate-ping`. It says something is happening without saying what, and it never stops moving.
+
+**Remediation:** let liveness show in the content, as rows arriving or a timestamp updating. Where the brief asks for a live badge, keep it and mark the line `anti-slop-allow: <reason>`.
+
+The scanner rule is `pulsing-dot`, medium severity, Pattern smell: a 2px to 16px round box, close to square, running an infinite animation whose keyframes pulse in place (opacity, a shadow or a scale, with no movement of 4px or more), or the Tailwind `animate-ping` / `animate-pulse` dot. An equaliser bar, a dot that pulses once, a dot that moves and a spinner over 16px stay clean. It re-expresses impeccable's `pulsing-dot` rule.
+
+### Marquee
+
+A row of logos or headlines that scrolls sideways forever: a `<marquee>`, or a flex track running `translateX(0)` to `translateX(-50%)` on an infinite linear loop. It fills a strip the page had nothing to say in, and the motion never stops asking for attention.
+
+**Remediation:** show the items as a static row, or let the reader scroll the row on demand with a visible pause control.
+
+The scanner rule is `marquee`, low severity, Pattern smell: a `<marquee>` tag, or keyframes that carry the row a fifth of its width or more along the x axis, run forever. A one-shot slide, a scroll-snap rail moved by hand, and a one-step keyframes body that also scales or fades stay clean, and declarations inside `prefers-reduced-motion: reduce` are skipped. It re-expresses impeccable's `marquee` rule.
+
 ### `transition-all`
 
 The one motion default that is a defect on its own technical merits rather than as a taste call. `transition-all` animates every animatable property, layout properties included, so a hover that was meant to fade a shadow also interpolates width, height, and position on any state change that touches them. `frontend-patterns.md` § Animation Performance already says not to animate layout properties; this is the shorthand that does it by accident.
@@ -169,9 +193,40 @@ The one motion default that is a defect on its own technical merits rather than 
 
 Dark background plus a saturated glow bleeding off cards, buttons, and headings: `box-shadow: 0 0 40px rgba(139,92,246,0.5)`, `drop-shadow-[0_0_25px_#a855f7]`, a `text-shadow` halo on a heading. In the corpus this sits at 0.7% of comments with **low** false-positive risk, and the complaint is specific: **the glow, not dark mode.** Dark mode itself is cleared by the data. The glow is what nobody asked for.
 
-It arrives with the purple palette because a saturated hue on near-black is where a glow reads at all, which is why the two so often ship together. The scanner matches it as `neon-glow`.
+It arrives with the purple palette because a saturated hue on near-black is where a glow reads at all, which is why the two so often ship together. The scanner matches it as `neon-glow` when a viewer could see it: a layer with zero offsets, a blur over 4px, a chromatic colour, and blur times alpha of 3 or more, so a soft neutral shadow, a 1px hairline ring and a `--card-box-shadow` token definition do not count. A focus halo is a state indicator and is exempt. On a bar or track whose declared sides differ by four times or more, a halo that lights more than twice the element's own area reads as a lit track rather than a glow; a halo around a dot or a card keeps the verdict.
 
 **Remediation:** carry elevation with a real shadow scale and a lighter surface, the way the platform does. `background: var(--surface-2)` plus `box-shadow: 0 1px 2px rgb(0 0 0 / 0.6)` separates a card from its ground without the halo. Where a glow is genuinely the brand (a synthwave product, a monitoring wall meant to be read across a room), keep it and mark the line, because the rule is about the unchosen default rather than the technique.
+
+### Side Stripe on a Card
+
+A coloured bar down one side of a card, callout or panel: `border-left: 4px solid` in a brand teal, an absolute `::before` strip, an inset side shadow, or `border-l-4 border-teal-600`. It is the generated way to say "this one matters" without deciding what makes it matter, and it lands on every callout of the page at once. The coloured left border is banned on any box here, rounded or square.
+
+**Remediation:** carry the emphasis with something that says why: a surface tint, a heading, or real selection state. The severity edge of a live region (`role="alert"`, `aria-live`), the error edge of an invalid field, and the edge of the selected tab or the current row are substance rather than decoration, and stay.
+
+The scanner rule is `side-stripe-accent`, medium severity, Pattern smell, on one instance: a stripe of 2px or more (3px on a square box) that dominates the other sides, in a colour that is not neutral, drawn by any of the syntaxes above, including a JSX style object. Controls, list items, table cells and inline text are exempt subjects, and an unreadable radius counts as rounded rather than as evidence of a square box. The thresholds and exemptions re-express impeccable's `side-tab` rule; the square-box ban is this catalogue's own, and is where the two part ways.
+
+### Text Below the Legibility Floor
+
+Running text at 11px, footer links at 10px, a price note at `0.625rem`. Small type is how a generated layout fits everything into the mockup; it reads on the designer's display and not on a phone.
+
+**Remediation:** set running text at 12px or more (16px for body copy) and functional text (links, labels, table cells, meta rows) at 11px or more, and subordinate it with weight, colour or caps tracking rather than size. Small print inside a legal or footnote block may go to 10px.
+
+The scanner rule is `text-size-floor`, medium severity, Quality defect. It judges px, rem and the `font` shorthand's size, and guesses nothing else, so em, percent, viewport and `clamp()` sizes are not judged. Footnote markers (`sup`, `sub`), code, `option` and hidden text are exempt; a selector that names a label-like word (`meta`, `badge`, `caption`, `tag`) is functional even when it also names a reading word, and caps text takes the functional floor. It reads one block at a time, so a size inherited from a parent rule is not seen. The floors re-express impeccable's `tiny-text` and `undersized-ui-text`.
+
+### Reading Mechanics
+
+Settings that make running text harder to read, each common in stylesheets that tune the display type and copy the values down to the body:
+
+| Tell | Rule | Fires when |
+|---|---|---|
+| Tight leading | `tight-leading` | Body text under 24px with a line-height under 1.3 |
+| Wide tracking | `wide-tracking` | Mixed-case running text tracked wider than 0.05em |
+| Justified narrow column | `justified-narrow-column` | `text-align: justify` on a measure of about 45 characters or less, with no `hyphens: auto` |
+| Crushed tracking | `crushed-tracking` | Letter-spacing tighter than -0.07em (-0.09em at 40px and up) |
+
+**Remediation:** body leading at 1.4 to 1.6; running-text tracking between -0.01em and 0.02em; a ragged-right narrow column, or justify with hyphens on a measure of 45 characters or more; display tracking between -0.02em and -0.05em. Display tracking of -0.05em is normal, and the rules leave it alone.
+
+All of them are low severity, Quality defect, and keep the settings that belong to other text: headings and display sizes, lead text at 20px or more, bold titles, caps and small-caps labels, code, controls, and CJK text, where open tracking is conventional (Arabic, Hebrew and Thai do not justify on word spaces either). A wordmark or logo selector keeps its tight tracking, and a readout (tabular figures, or text set to copy whole such as a device code) is never running text. A furniture word in the selector (`code`, `badge`, `label`) marks a label whatever element it styles. Where the file carries its own markup, a class, id or attribute selector is read as the element it styles, and a block whose every element holds a short label is read as a label rather than as running text. The thresholds re-express impeccable's `tight-leading`, `wide-tracking`, `justified-text` and `extreme-negative-tracking`.
 
 ### Emoji as Interface
 
@@ -328,7 +383,7 @@ AI-generated UI frequently fails accessibility. These are functional defects, no
 **Semantic HTML:**
 - `<div>` and `<span>` for everything instead of semantic elements (`<nav>`, `<main>`, `<article>`, `<button>`, `<dialog>`, `<table>`)
 - `<div onclick>` instead of `<button>` (breaks keyboard nav and screen readers)
-- Heading levels skipped (h1 to h3) or chosen for size instead of hierarchy
+- Heading levels skipped (h1 to h3) or chosen for size instead of hierarchy. The scanner rule is `skipped-heading` (medium, Quality defect), on full HTML documents only: a heading more than one level below the one before it. Going back up, the first heading, and the first heading of a `<footer>` or `role="contentinfo"` region are not findings, and markup quoted in `<code>` or `<pre>` is not read. It re-expresses impeccable's `skipped-heading` rule
 - No landmark elements for screen reader navigation
 
 **Focus and Keyboard:**
@@ -357,10 +412,20 @@ AI-generated UI frequently fails accessibility. These are functional defects, no
 
 **Four of these have scanner rules, and every remediation adds behaviour rather than removing it.**
 
-- `outline-none` matches `outline: none` / `outline: 0` in a file that defines no `:focus-visible` rule. **Remediation: replace the ring, never remove it.** `:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px }` satisfies WCAG 2.4.7 and looks better than the browser default, which is usually why the outline was killed in the first place. A file that already defines `:focus-visible` is silenced, because suppressing the default in favour of a designed ring is the correct pattern.
+- `outline-none` matches `outline: none` / `outline: 0`, and the Tailwind `outline-none` / `outline-hidden` utilities in a class set that carries no `focus:` or `focus-visible:` replacement (a ring width, an outline width or style, or a focus border colour), in a file that defines no `:focus-visible` rule. `focus:outline-none focus:ring-2` replaces the indicator and is not a finding. **Remediation: replace the ring, never remove it.** `:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px }` satisfies WCAG 2.4.7 and looks better than the browser default, which is usually why the outline was killed in the first place. A file that already defines `:focus-visible` is silenced, because suppressing the default in favour of a designed ring is the correct pattern.
 - `missing-alt` matches an `<img>` with no `alt` attribute at all, and separately an `alt` whose value is `image`, `photo`, `picture`, `icon`, `graphic`, or `img`, which is the placeholder a generated page writes when it has nothing to say. **Remediation: write what the image conveys**, in the context where it sits ("Q3 revenue by region, with EMEA flat"). For a decorative image, `alt=""` is the correct answer and is deliberately not matched. Deleting the `<img>` is never the fix.
 - `viewport-zoom-lock` matches a viewport meta carrying `user-scalable=no`, `user-scalable=0`, or `maximum-scale=1`, which blocks pinch zoom and fails WCAG 1.4.4 Resize Text. **Hard defect**, medium severity, presence-flagged: there is no reading on which locking zoom helps the person holding the phone. **Remediation: delete both attributes.** `width=device-width, initial-scale=1` is the whole viewport meta, and the layout bug that prompted the lock (usually a fixed-width element) is the thing to fix.
 - `positive-tabindex` matches `tabindex` (or JSX `tabIndex`) set to a positive integer, which pulls the element ahead of everything else in the focus order and fails WCAG 2.4.3 Focus Order as soon as a second element does the same. **Quality defect**, medium severity. `tabindex="0"` (in the natural order) and `tabindex="-1"` (focusable by script only) are correct and are not matched. **Remediation: `tabindex="0"` or none, and fix the DOM order** so the natural sequence is the intended one.
+
+### Contrast on the Declared Surface
+
+Text that fails WCAG 1.4.3 on the surface its stylesheet gives it: `#8a8a8a` captions on white, white labels on a mid-amber button, slate meta text on a navy card. Generated palettes take the text colour and the surface from different scales and never measure the pair, and the tertiary "muted" token is where the failure lands most often.
+
+**Remediation:** move the lightness, keeping the hue and the surface, until the pair clears 4.5:1 (3:1 for text at 24px, or 18.66px bold). Measure the pair that shipped rather than trusting the scale's name.
+
+The scanner rules are `low-contrast` (high severity, Quality defect) and `low-contrast-near-bar` (low severity, for a ratio within 0.3 of its bar, so a hairline miss never reads like a 2:1 one). A pair is measured only when both colours are known: the block's own background, the background of the exact block its plain descendant chain names, or the page ground when nothing else in the file paints a surface. A `:hover` block borrows its missing half from the rule it repaints, and placeholder text is measured too, at near-bar when the file labels its fields. Not measured: gradient and image surfaces, values left behind an unresolved `var()`, Tailwind colour utilities, dark-mode overrides, and any surface set in another file. A pair that cannot be measured reports nothing, and a failing ratio never prints as its bar (4.4983 reads as 4.49, not 4.5). The tiers re-express impeccable's `low-contrast` rule.
+
+A pair can pass the ratio and still read badly: neutral mid-grey text on a saturated surface (`text-gray-300` on `bg-blue-800`, `#d1d5db` on `#1e40af`) has no hue of its own to sit on the colour with, and reads muddy. Tint the secondary text from the surface hue at lower chroma, or use the surface's own ink. The scanner rule is `gray-on-color`, low severity, Pattern smell: a resting `text-gray`/`slate`/`zinc`/`neutral`/`stone` 300 to 600 beside a resting chromatic `bg-*` above 100 in one class set, or a CSS pair on its own block or its ancestor whose ink is grey (HSL saturation under 0.2, lightness 0.3 to 0.85) on a surface that reads as colour. Pale tints, hover surfaces, near-white and near-black ink stay clean. It re-expresses impeccable's `gray-on-color` rule.
 
 ### Mobile-Unfriendly Designs
 
@@ -422,6 +487,15 @@ AI generates only the "happy path" view. Production interfaces need all of these
 Unmodified shadcn/ui, Material UI, or Ant Design components produce instantly recognizable interfaces. The exact same dialog, popover, dropdown, toast, and data table styling appears across thousands of AI-generated projects.
 
 **Rule:** Customize component library defaults to match the project's identity. Change the default border colors, radii, shadows, and transitions. An interface should not look like the library's documentation site.
+
+## A Documented Design System (DESIGN.md)
+
+A project that writes its system down has made the choice the tells in this file look for, so a value it documents is not a default. Where a `DESIGN.md` sits beside the code (the nearest one walking up from the file, inside the project), the scanner reads its frontmatter: `colors.<name>` for the palette and `typography.<role>.fontFamily` for the faces.
+
+- **A declared purple is the brand, at its own hue.** The exemption is per match, never per rule. When the file declares a colour on the purple arc (OKLCH hue 250 to 320, chroma 0.08 or more), a purple hex or utility within 15 degrees of that hue is the documented palette and does not count toward the four purple rules (`ai-purple-hex`, `ai-purple-class`, `purple-gradient-default`, `purple-blue-gradient`); every other match still fires, so a declared blue-600 (hue about 263) leaves a violet `#7c3aed` (about 293) a tell. A gradient is exempt only when each of its purple stops is. A literal within 6 per channel of any declared colour never counts either, and the CLI's coverage notes name the declared colours.
+- **A face outside the declared typography is drift.** `design-system-font` (medium, Quality defect) fires on a block whose primary face is not one `DESIGN.md` declares. A system stack never counts, and test, fixture and story files are skipped, since the file describes the product rather than its fixtures. Use a declared family, or add the face to `DESIGN.md` with the reason it was chosen.
+
+Colour, radius and type-size drift against the file are not scanner rules: a short declared ramp would flag nearly every file, and the judgment belongs to a reviewer. The file is read, never written. The reader and the font rule re-express impeccable's `DESIGN.md` support and its `design-system-font` rule.
 
 ## Dark Mode Bias
 
@@ -604,6 +678,14 @@ across every family.
 | Gradient text on a hero word | Yes (`gradient-text`) |
 | Frosted sticky nav | Yes (`frosted-glass-nav`) |
 | Unmodified shadcn card | Yes (`shadcn-default-card`, `shadow-border-rounded-combo`) |
+| Side stripe on a card | Yes (`side-stripe-accent`) |
+| Bounce easing, the pulsing live dot, the marquee | Yes (`bounce-easing`, `pulsing-dot`, `marquee`) |
+| Dot, grid and stripe background patterns, the radial halo on a dark page | Yes (`background-pattern`, `radial-halo`) |
+| Text contrast on its surface | Partly (`low-contrast`, `low-contrast-near-bar`: declared surfaces only, no Tailwind colour utilities) |
+| Grey text on a coloured surface | Yes (`gray-on-color`) |
+| Heading levels skipped | Yes (`skipped-heading`, full HTML documents) |
+| A face outside the typography DESIGN.md declares | Yes (`design-system-font`, only where a DESIGN.md is found) |
+| Type below the legibility floor, the reading-mechanics settings | Partly (`text-size-floor`, `tight-leading`, `wide-tracking`, `justified-narrow-column`, `crushed-tracking`: one block at a time) |
 | Icon in a colored circle | Yes (`icon-in-colored-circle`) |
 | Decorative blur blobs | Yes (`blur-blob`) |
 | Tracked-out uppercase overline (Strongest-10 #4) | Yes (`uppercase-overline`) |
@@ -623,20 +705,21 @@ across every family.
 | 4-column footer (#10) | **No** |
 | Badge pill above the hero, two-button CTA group, alternating L-R sections, wave dividers, testimonial trio, pricing convention, 404 formula, the SaaS page sequence | **No** |
 
-Every design rule that counts before it reports, and the threshold it counts to. All ten are
-listed; a rule absent from this table is presence-flaggable, where one hit is the finding.
+Every design rule that counts before it reports, and the threshold it counts to. All of them
+are listed; a rule absent from this table is presence-flaggable, where one hit is the finding.
 
 | Tell | Fires at | Because |
 |---|--:|---|
 | `rounded-everything` | 3 | "The same radius on every interactive control" is a pattern; one pill is a choice |
 | `uniform-literal-radius` | 3 | Same claim in raw CSS, and silenced entirely on any file that states a radius identity (a `--radius` token, or a `border-radius: var(...)`) |
 | `uniform-section-padding` | 3 | One `py-20` beside a `py-12` and a `py-32` is a rhythm, not a default |
-| `cream-serif-default` | 2 | The combination is the signal -- any two of cream, serif display, warm accent |
-| `ai-purple-hex` / `ai-purple-class` | 2 | The tell is "indigo IS the palette", which one declaration does not establish |
+| `cream-serif-default` | 2 | The combination is the signal: two distinct legs, where clay counts only beside the serif display |
+| `ai-purple-hex` / `ai-purple-class` | 2 | The tell is "indigo IS the palette", which one declaration does not establish. A tokens file that declares the whole Tailwind ramp (`--violet-500`) is not the palette in use until something reads the token; a semantic role (`--primary`, `--brand`) counts where it is declared |
 | `bootstrap-default-blue` | 2 | Same logic, Bootstrap's compiled literals. Counting alone was not enough here: the count sums matches, not distinct hexes, so the rule additionally requires the primary blue to be in the file before the border gray counts toward anything |
 | `important-overuse` | 2 | The rule is named *overuse*; one override against a third-party widget is pragmatism |
 | `transition-all` | 2 | One `transition: all` on a single control is laziness; two is the file's default |
 | `token-drift-spacing` | 2 | Needs two off-scale values, and only in a file that declared two `--space` tokens to drift from |
+| `shadow-border-rounded-combo` | 3 cards, or 2 | The trio is the surface's card treatment when three cards carry it, or every card of a surface that has two; one framed card among unframed sections is a choice |
 
 **The floor rule: a lone utility-class hit is not a finding.** One `text-slate-600`, one
 `shadow-sm`, one `rounded-full` on a decorative avatar, on an otherwise coherent surface,
@@ -673,6 +756,10 @@ A circular button (`fixed bottom-4 right-4 rounded-full w-14 h-14 bg-indigo-600 
 CSS `radial-gradient(circle, #e5e7eb 1px, transparent 1px)` with `background-size: 20px 20px` behind hero sections. A decorative pattern that adds no information.
 
 **Instead:** Use a solid background, a photograph, a subtle texture, or white space. If a grid pattern serves a specific purpose (graph paper aesthetic for a data tool), use it intentionally.
+
+The scanner rule is `background-pattern`, low severity, Pattern smell: two or more hairline stops on a px tile (a grid), a radial stop of 2px or less on a px tile (a dot field), or a repeating gradient whose last stop falls short of its full length (stripes). One hairline is a ruled line or a rail, and a repeating gradient that runs its whole length paints once; both stay clean. Where the grid is the stated surface, mark the line `anti-slop-allow: background-pattern -- <reason>`. It re-expresses impeccable's `codex-grid-background` and `repeating-stripes-gradient` rules.
+
+A related texture is the radial halo: a saturated glow fading to nothing behind a section of a dark page, `radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.8), transparent 70%)`. The scanner rule is `radial-halo`, low severity, Pattern smell: on a page ground darker than 0.05 relative luminance, a radial gradient whose first stop is opaque (alpha 0.7 or more) and chromatic and whose last stop is transparent, with no stop pinned within 24px. A light page, a translucent wash and a small spot stay clean. Ground the section with a solid or slightly shifted surface instead, or put the light on the content. It re-expresses impeccable's `radial-halo` rule.
 
 ### The SaaS Landing Page Sequence
 AI produces pages in this exact order regardless of project type: nav, hero, logo bar, stats row, feature grid, alternating L-R features, testimonials, pricing, FAQ accordion, CTA repeat, footer. A restaurant, portfolio, e-commerce store, and SaaS product all get this same structure.

@@ -474,10 +474,14 @@ test("generic-font: Poppins is deliberately absent from the family list", () => 
   assert.ok(!fires("generic-font", "body { font-family: 'Poppins', sans-serif; }", "app.css"));
 });
 
-test("cream-serif-default: the rusty-orange accent leg counts as a leg", () => {
-  const withAccent = '<h1 class="bg-stone-50 text-orange-700">Field notes</h1>';
-  assert.ok(fires("cream-serif-default", withAccent, "page.html"), "cream + rust is two legs");
-  assert.ok(fires("cream-serif-default", '<div class="text-amber-700" style="background:#faf8f5">x</div>', "page.html"));
+// Resolved 2026-10-26: the rusty-orange accent completes the combination beside the serif
+// display only. Cream with a brick accent and no serif is a common human palette, and the
+// accent hues prescribed to replace AI purple sit in that band.
+test("cream-serif-default: the rusty-orange accent is a leg beside the serif display, not beside cream alone", () => {
+  assert.ok(fires("cream-serif-default", '<h1 class="text-orange-700" style="font-family: Fraunces, serif">Field notes</h1>', "page.html"), "serif + clay");
+  assert.ok(fires("cream-serif-default", 'h1 { font-family: "Fraunces", serif } .cta { color: #c2410c }', "page.css"), "serif + clay in CSS");
+  assert.ok(!fires("cream-serif-default", '<h1 class="bg-stone-50 text-orange-700">Field notes</h1>', "page.html"), "cream + clay alone");
+  assert.ok(!fires("cream-serif-default", "body { background: #faf8f5 } .cta { background: #c2410c }", "page.css"), "cream + clay alone in CSS");
 });
 
 test("cream-serif-default: one accent leg alone is below the concentration threshold", () => {
@@ -591,6 +595,14 @@ test("viewport-zoom-lock: a viewport meta that blocks pinch zoom is a finding", 
   }
 });
 
+test("viewport-zoom-lock: either attribute order fires, and the word viewport in prose does not", () => {
+  assert.ok(fires("viewport-zoom-lock", '<meta content="width=device-width, user-scalable=no" name="viewport">', "index.html"));
+  assert.ok(fires("viewport-zoom-lock", "<meta name='viewport' content='width=device-width, maximum-scale=1'>", "index.html"));
+  // A reference line about the tag is documentation: 2.5.0 fired on it.
+  assert.ok(!fires("viewport-zoom-lock", "Grep the viewport meta for `user-scalable=no` and `maximum-scale=1`; delete both.", "docs/notes.html"));
+  assert.ok(!fires("viewport-zoom-lock", '<meta name="description" content="viewport tips: user-scalable=no is wrong">', "index.html"));
+});
+
 test("viewport-zoom-lock: the correct viewport meta and a usable zoom cap are NOT findings", () => {
   assert.ok(!fires("viewport-zoom-lock", '<meta name="viewport" content="width=device-width, initial-scale=1">', "index.html"));
   // A cap of 5 still leaves the user a range; 1 is the one that removes the control.
@@ -674,4 +686,583 @@ test("the reported line is the line the tell is actually on", () => {
   // A comment tell on a code surface is scanned through extractComments, which preserves
   // the line count precisely so this number is the file's line and not the comment's index.
   assert.equal(found.find((v) => v.name === "apologetic-comment").line, 3);
+});
+
+// ── low-contrast / low-contrast-near-bar (2.5.0) ─────────────────────────────
+// WCAG 1.4.3 arithmetic on surfaces the file declares. Every exemption below has its
+// should-flag twin beside it: an exemption that swallows the case next to it is the
+// failure these pairs exist to catch.
+
+const page = (css, body = "<p>x</p>") => `<!doctype html><html lang="en"><head><style>${css}</style></head><body>${body}</body></html>`;
+const contrast = (content, path = "page.html") => scanContent(content, path).filter((v) => v.name === "low-contrast" || v.name === "low-contrast-near-bar");
+
+test("low-contrast: the corpus pairs fire on the positives and stay silent on their partners", () => {
+  const pairs = names(corpus("design/contrast-pairs.html"), "design/contrast-pairs.html");
+  assert.ok(pairs.includes("low-contrast") && pairs.includes("low-contrast-near-bar"), JSON.stringify(pairs));
+  assert.ok(names(corpus("design/contrast-ground.html"), "design/contrast-ground.html").includes("low-contrast"));
+  assert.deepEqual(contrast(corpus("design/contrast-clean.html")), []);
+  assert.deepEqual(contrast(corpus("design/contrast-ground-clean.html")), []);
+});
+
+test("low-contrast: each tier reports its ratio, its colours and where the surface came from", () => {
+  const [v] = contrast(corpus("design/contrast-pairs.html")).filter((x) => x.name === "low-contrast");
+  assert.equal(v.count, 3);
+  assert.equal(v.line, 11);
+  assert.match(v.evidence, /^\.btn 2\.9:1 \(need 4\.5:1\), text #ffffff on #ca8a10 \(block\)$/);
+  const ground = contrast(corpus("design/contrast-ground.html"))[0];
+  assert.match(ground.evidence, /3\.5:1 .*\(page ground\)/);
+});
+
+test("low-contrast: a hairline miss is near-bar at low severity, a real miss is high", () => {
+  const hairline = contrast(page("body { background: #fff } .t { background: #f1f5f9; color: #6b7280 }"));
+  assert.deepEqual(hairline.map((v) => [v.name, v.severity]), [["low-contrast-near-bar", "low"]]);
+  const real = contrast(page("body { background: #fff } .t { background: #f1f5f9; color: #9ca3af }"));
+  assert.deepEqual(real.map((v) => [v.name, v.severity]), [["low-contrast", "high"]]);
+});
+
+test("low-contrast: a disabled control is exempt, and the same colours enabled are not", () => {
+  assert.deepEqual(contrast(page("button:disabled { background: #fff; color: #9ca3af }")), []);
+  assert.equal(contrast(page("button { background: #fff; color: #9ca3af }")).length, 1);
+});
+
+test("low-contrast: a gradient or image surface is not measured, a solid one is", () => {
+  assert.deepEqual(contrast(page(".hero { background: linear-gradient(#fff, #eee); color: #9ca3af }")), []);
+  assert.deepEqual(contrast(page(".hero { background: #fff url(x.png); color: #9ca3af }")), []);
+  assert.equal(contrast(page(".hero { background: #ffffff; color: #9ca3af }")).length, 1);
+});
+
+test("low-contrast: the page ground holds only when nothing else in the file paints a surface", () => {
+  // The BEM shape: .hero__sub sits on .hero's navy, which no selector chain says.
+  const bem = "body { background: #fff } .hero { background: #0f172a; color: #fff } .hero__sub { color: #9ca3af }";
+  assert.deepEqual(contrast(page(bem)), [], "a second painted surface switches the page-ground tier off");
+  const twin = "body { background: #fff } .hero { color: #111 } .hero__sub { color: #9ca3af }";
+  assert.equal(contrast(page(twin)).length, 1, "with the page ground the only surface, the pair is measured");
+  assert.deepEqual(contrast(page(".note { color: #9ca3af }")), [], "an undeclared ground is unknown, not white");
+});
+
+test("low-contrast: the large-text bar is 3:1, and the same colour at body size fails", () => {
+  assert.deepEqual(contrast(page("body { background: #fff } .d { font-size: 28px; font-weight: 700; color: #8f8f8f }")), []);
+  assert.deepEqual(contrast(page("body { background: #fff } .d { font-size: 19px; font-weight: bold; color: #8f8f8f }")), []);
+  assert.equal(contrast(page("body { background: #fff } .d { font-size: 16px; color: #8f8f8f }")).length, 1);
+});
+
+test("low-contrast: placeholder text is measured, near-bar when the field is labelled", () => {
+  const css = "input { background: #fff; color: #111 } input::placeholder { color: #9ca3af }";
+  const labelled = contrast(page(css, '<label for="a">Name</label><input id="a" placeholder="Ada">'));
+  assert.deepEqual(labelled.map((v) => v.name), ["low-contrast-near-bar"]);
+  const bare = contrast(page(css, '<input placeholder="Ada">'));
+  assert.deepEqual(bare.map((v) => v.name), ["low-contrast"]);
+});
+
+test("low-contrast: gradient text, dark-scheme overrides and unresolved tokens are not measured", () => {
+  assert.deepEqual(contrast(page("body { background: #fff } h1 { background-clip: text; color: #eee }")), []);
+  assert.equal(contrast(page("body { background: #fff } h1 { color: #eee }")).length, 1);
+  assert.deepEqual(contrast(page("body { background: #fff } @media (prefers-color-scheme: dark) { .n { color: #eee } }")), []);
+  assert.deepEqual(contrast(page(".n { background: #fff; color: var(--ink) }")), []);
+  assert.equal(contrast(page(":root { --ink: #eee } .n { background: #fff; color: var(--ink) }")).length, 1);
+});
+
+test("low-contrast: inline styles and JSX style objects are measured as blocks", () => {
+  assert.equal(contrast('<p style="background: #fff; color: #aaa">x</p>').length, 1);
+  assert.equal(contrast('export const N = () => <p style={{ background: "#fff", color: "#aaa" }}>x</p>;', "N.tsx").length, 1);
+});
+
+test("low-contrast: one finding per colour pair, and a waived line drops its hit", () => {
+  const twice = contrast(page("body { background: #fff } .a { background: #fff; color: #aaa } .b { background: #fff; color: #aaa }"));
+  assert.equal(twice[0].count, 1);
+  const hatched = page("body { background: #fff }\n.a { background: #fff; color: #aaa } /* anti-slop-allow: brand grey */");
+  assert.deepEqual(contrast(hatched), []);
+});
+
+// ── side-stripe-accent (2.5.0) ───────────────────────────────────────────────
+
+const stripe = (content, path = "page.html") => scanContent(content, path).filter((v) => v.name === "side-stripe-accent");
+
+test("side-stripe-accent: every producer in the positive fires, and the partner is silent", () => {
+  const [v] = stripe(corpus("design/side-stripe-cards.html"));
+  assert.equal(v.count, 5);
+  assert.deepEqual(v.lines, [11, 12, 14, 15, 25]);
+  assert.deepEqual(stripe(corpus("design/side-stripe-clean.html")), []);
+});
+
+test("side-stripe-accent: exempt subjects and states, each beside the twin it must not swallow", () => {
+  const css = (rule) => page(rule);
+  assert.deepEqual(stripe(css(".timeline li { border-left: 3px solid #0f766e }")), [], "a list item");
+  assert.equal(stripe(css(".timeline div { border-left: 3px solid #0f766e }")).length, 1, "the same rule on a div");
+  assert.deepEqual(stripe(css('.tabs [aria-selected="true"] { border-left: 3px solid #0f766e }')), [], "a selected tab");
+  assert.equal(stripe(css(".tabs .item { border-left: 3px solid #0f766e }")).length, 1, "the same edge with no selection state");
+  assert.deepEqual(stripe(css('[role="alert"] { border-left: 4px solid #b91c1c }')), [], "a live region");
+  assert.equal(stripe(css(".alert { border-left: 4px solid #b91c1c }")).length, 1, "a class named alert is not a live region");
+  assert.deepEqual(stripe('<button class="border-l-4 border-teal-600">x</button>'), [], "a control");
+  assert.equal(stripe('<div class="border-l-4 border-teal-600">x</div>').length, 1, "the same classes on a div");
+});
+
+test("side-stripe-accent: neutral, hairline and evenly framed borders are not stripes", () => {
+  assert.deepEqual(stripe(page(".a { border-left: 4px solid #d4d4d8 }")), [], "neutral grey");
+  assert.equal(stripe(page(".a { border-left: 4px solid #0f766e }")).length, 1, "chromatic");
+  assert.deepEqual(stripe(page(".a { border-left: 1px solid #0f766e }")), [], "a 1px rule");
+  assert.deepEqual(stripe(page(".a { border: 2px solid #0f766e; border-left-width: 3px }")), [], "not dominant over the other sides");
+  assert.equal(stripe(page(".a { border: 1px solid #e5e7eb; border-left: 4px solid #0f766e }")).length, 1, "a hairline frame with a thick coloured side");
+  assert.equal(stripe(page(".a { border-left: 4px solid var(--accent) }")).length, 1, "an unknown colour keeps the finding");
+});
+
+test("side-stripe-accent: a square box needs 3px, a rounded or unknown radius 2px", () => {
+  assert.deepEqual(stripe(page(".a { border-radius: 0; border-left: 2px solid #0f766e }")), []);
+  assert.equal(stripe(page(".a { border-radius: 0; border-left: 3px solid #0f766e }")).length, 1);
+  assert.equal(stripe(page(".a { border-radius: 8px; border-left: 2px solid #0f766e }")).length, 1);
+  assert.equal(stripe(page(".a { border-left: 2px solid #0f766e }")).length, 1, "no radius is unknown, not square");
+});
+
+test("side-stripe-accent: pseudo bars, inset shadows, style objects and border-l-N", () => {
+  const bar = ".f { position: relative } .f::before { content: \"\"; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #0f766e }";
+  assert.equal(stripe(page(bar)).length, 1);
+  assert.deepEqual(stripe(page(bar.replace("width: 4px", "width: 24px"))), [], "a wide block is not a bar");
+  assert.deepEqual(stripe(page("pre::before { content: \"\"; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #0f766e }")), [], "a code block's gutter");
+  assert.equal(stripe(page(".p { box-shadow: inset 4px 0 0 #0f766e }")).length, 1);
+  assert.deepEqual(stripe(page(".p { box-shadow: inset 0 4px 0 #0f766e }")), [], "a top band is not a side stripe");
+  assert.deepEqual(stripe(page(".p { width: 32px; box-shadow: inset 4px 0 0 #0f766e }")), [], "a small control");
+  assert.equal(stripe('export const C = () => <div style={{ borderLeft: "4px solid #0f766e", borderRadius: 12 }}>x</div>;', "C.tsx").length, 1);
+  assert.deepEqual(stripe('<div class="border-l-2 border-teal-600">x</div>'), [], "border-l-2 on a square box");
+  assert.equal(stripe('<div class="rounded-lg border-l-2 border-teal-600">x</div>').length, 1, "border-l-2 on a rounded card");
+  assert.deepEqual(stripe('<div class="border-l-4 border-slate-300">x</div>'), [], "a neutral Tailwind border");
+  assert.deepEqual(stripe('<div class="hover:border-l-4 border-teal-600">x</div>'), [], "a hover-only stripe is state");
+});
+
+// ── text-size-floor (2.5.0) ──────────────────────────────────────────────────
+
+const floor = (content, path = "page.css") => scanContent(content, path).filter((v) => v.name === "text-size-floor");
+
+test("text-size-floor: the corpus positive fires on all three floors' cases, the partner is silent", () => {
+  const [v] = floor(corpus("design/type-floors.html"), "design/type-floors.html");
+  assert.equal(v.count, 3);
+  assert.match(v.evidence, /^\.article p: font-size 11px \(running text, floor 12px\)$/);
+  assert.deepEqual(floor(corpus("design/type-floors-clean.html"), "design/type-floors-clean.html"), []);
+});
+
+test("text-size-floor: running text has a 12px floor, functional text 11px", () => {
+  assert.equal(floor(".article p { font-size: 11px }").length, 1);
+  assert.deepEqual(floor(".price { font-size: 11px }"), [], "11px functional text is at its floor");
+  assert.equal(floor(".price { font-size: 10.9px }").length, 1, "the 0.1px tolerance, not a rounding");
+  assert.deepEqual(floor(".price { font-size: 10.95px }"), []);
+});
+
+test("text-size-floor: a label-like word makes a reading selector functional, and its twin still reads", () => {
+  assert.deepEqual(floor(".post-meta { font-size: 11px }"), []);
+  assert.equal(floor(".post-body { font-size: 11px }").length, 1);
+});
+
+test("text-size-floor: caps take the functional floor, mixed case the reading one", () => {
+  assert.deepEqual(floor(".lede { font-size: 11px; text-transform: uppercase }"), []);
+  assert.equal(floor(".lede { font-size: 11px }").length, 1);
+});
+
+test("text-size-floor: small print has a 10px floor, and footnote is a whole class word", () => {
+  assert.deepEqual(floor(".legal small { font-size: 10px }"), []);
+  assert.equal(floor(".legal small { font-size: 9.5px }").length, 1);
+  assert.deepEqual(floor(".footnote { font-size: 10px }"), []);
+  assert.equal(floor(".text-footnote { font-size: 10px }").length, 1, "Apple's text-footnote style is not small print");
+  assert.equal(floor(".terms p { font-size: 11px }").length, 1, "terms is not a small-print word");
+});
+
+test("text-size-floor: footnote markers, code and hidden text are exempt; svg labels are not", () => {
+  assert.deepEqual(floor("sup.fn { font-size: 9px }"), []);
+  assert.equal(floor("span.fn { font-size: 9px }").length, 1);
+  assert.deepEqual(floor("code { font-size: 10px }"), []);
+  assert.deepEqual(floor('[aria-hidden="true"] { font-size: 9px }'), []);
+  assert.equal(floor("svg text { font-size: 9px }").length, 1, "diagram labels are read, and the exemption was measured and rejected");
+});
+
+test("text-size-floor: only px, rem and the font shorthand are judged", () => {
+  assert.deepEqual(floor(".a p { font-size: 0.6em }"), []);
+  assert.deepEqual(floor(".a p { font-size: 60% }"), []);
+  assert.deepEqual(floor(".a p { font-size: clamp(9px, 1vw, 12px) }"), []);
+  assert.equal(floor(".a p { font: 11px/1.5 system-ui, sans-serif }").length, 1);
+  assert.equal(floor(".a p { font-size: 0.6875rem }").length, 1);
+});
+
+// ── Reading mechanics (2.5.0): tight-leading, wide-tracking, justified-narrow-column,
+// crushed-tracking ──
+
+const fired = (rule, content, path = "page.css") => scanContent(content, path).filter((v) => v.name === rule);
+
+test("reading mechanics: the shared positive plants one construct per rule, the partner none", () => {
+  const got = names(corpus("design/reading-mechanics.html"), "design/reading-mechanics.html");
+  for (const r of ["tight-leading", "wide-tracking", "justified-narrow-column", "crushed-tracking"]) assert.ok(got.includes(r), `${r}: ${JSON.stringify(got)}`);
+  assert.deepEqual(names(corpus("design/reading-mechanics-clean.html"), "design/reading-mechanics-clean.html"), []);
+});
+
+test("tight-leading: body text under 1.3 fires; headings, lead text, bold titles, code and furniture keep their setting", () => {
+  assert.equal(fired("tight-leading", ".article p { font-size: 16px; line-height: 1.15 }").length, 1);
+  assert.equal(fired("tight-leading", ".article p { font-size: 16px; line-height: 18px }").length, 1, "px leading divides by the size");
+  assert.deepEqual(fired("tight-leading", ".article p { font-size: 16px; line-height: 1.3 }"), []);
+  assert.deepEqual(fired("tight-leading", "h2 { font-size: 20px; line-height: 1.1 }"), []);
+  assert.equal(fired("tight-leading", "p { font-size: 20px; line-height: 1.1 }").length, 1, "the same leading on a paragraph");
+  assert.deepEqual(fired("tight-leading", ".lede { font-size: 22px; line-height: 1.2 }"), [], "lead text at 1.15 or more");
+  assert.equal(fired("tight-leading", ".lede { font-size: 18px; line-height: 1.2 }").length, 1, "below 20px it is body text");
+  assert.deepEqual(fired("tight-leading", ".x { font-size: 16px; font-weight: 600; line-height: 1.1 }"), []);
+  assert.deepEqual(fired("tight-leading", "pre { font-size: 14px; line-height: 1.2 }"), []);
+  assert.deepEqual(fired("tight-leading", ".badge { font-size: 12px; line-height: 1 }"), []);
+  assert.deepEqual(fired("tight-leading", ".x { font-size: 16px; line-height: normal }"), [], "normal is not judged");
+  assert.deepEqual(fired("tight-leading", ".x { font-size: 32px; line-height: 1 }"), [], "display sizes");
+});
+
+test("wide-tracking: running text over 0.05em fires; caps, labels, controls and CJK are exempt", () => {
+  assert.equal(fired("wide-tracking", ".note p { letter-spacing: 0.12em }").length, 1);
+  assert.deepEqual(fired("wide-tracking", ".note p { letter-spacing: 0.05em }"), []);
+  assert.equal(fired("wide-tracking", ".note p { font-size: 16px; letter-spacing: 2px }").length, 1, "px tracking divides by the size");
+  assert.deepEqual(fired("wide-tracking", ".note p { letter-spacing: 2px }"), [], "px tracking with no size is not judged");
+  assert.deepEqual(fired("wide-tracking", ".eyebrow { text-transform: uppercase; letter-spacing: 0.12em }"), []);
+  assert.equal(fired("wide-tracking", ".intro { letter-spacing: 0.12em }").length, 1, "the same tracking in mixed case");
+  assert.deepEqual(fired("wide-tracking", ".s { font-variant-caps: all-small-caps; letter-spacing: 0.06em }"), []);
+  assert.deepEqual(fired("wide-tracking", ":lang(ja) p { letter-spacing: 0.08em }"), []);
+  assert.deepEqual(fired("wide-tracking", ".btn { letter-spacing: 0.06em }"), []);
+});
+
+test("wide-tracking: a class whose every element holds a short label is a label, not running text", () => {
+  const html = (text) => `<style>.entry-no { letter-spacing: 0.1em }</style><p class="entry-no">${text}</p>`;
+  assert.deepEqual(fired("wide-tracking", html("No. 01"), "page.html"), []);
+  assert.equal(fired("wide-tracking", html("The ferry leaves at eleven and reaches the island after midnight."), "page.html").length, 1);
+});
+
+test("justified-narrow-column: a justified measure of 45 characters or less fires unless it hyphenates", () => {
+  assert.equal(fired("justified-narrow-column", ".s { width: 22ch; text-align: justify }").length, 1);
+  assert.deepEqual(fired("justified-narrow-column", ".s { max-width: 65ch; text-align: justify }"), []);
+  assert.deepEqual(fired("justified-narrow-column", ".s { width: 22ch; text-align: justify; hyphens: auto }"), []);
+  assert.deepEqual(fired("justified-narrow-column", ".col { hyphens: auto } .col p { width: 22ch; text-align: justify }"), [], "an ancestor's hyphens");
+  assert.equal(fired("justified-narrow-column", ".s { width: 18rem; text-align: justify }").length, 1, "18rem with no size reads as 36 characters");
+  assert.deepEqual(fired("justified-narrow-column", ".s { text-align: justify }"), [], "no declared measure is not judged");
+  assert.deepEqual(fired("justified-narrow-column", ".s { width: 20ch; text-align: center }"), []);
+  assert.deepEqual(fired("justified-narrow-column", ":lang(ar) .s { width: 22ch; text-align: justify }"), []);
+});
+
+test("crushed-tracking: tighter than -0.07em fires, -0.09em at display sizes; wordmarks are exempt", () => {
+  assert.equal(fired("crushed-tracking", ".hero h1 { font-size: 32px; letter-spacing: -0.1em }").length, 1);
+  assert.deepEqual(fired("crushed-tracking", ".hero h1 { font-size: 32px; letter-spacing: -0.05em }"), []);
+  assert.deepEqual(fired("crushed-tracking", ".display { font-size: 56px; letter-spacing: -0.08em }"), [], "the display bar is -0.09em");
+  assert.equal(fired("crushed-tracking", ".display { font-size: 56px; letter-spacing: -0.1em }").length, 1);
+  assert.deepEqual(fired("crushed-tracking", ".wordmark { font-size: 28px; letter-spacing: -0.08em }"), []);
+  assert.equal(fired("crushed-tracking", ".headline-mark { font-size: 28px; letter-spacing: -0.08em }").length, 1, "the same tracking on a non-wordmark");
+  assert.equal(fired("crushed-tracking", ".x { letter-spacing: -0.08em }").length, 1, "an unknown size takes the body bar");
+});
+
+// ── bounce-easing and pulsing-dot (2.5.0) ────────────────────────────────────
+
+test("bounce-easing: the corpus positive fires on all three forms, and springs stay clean", () => {
+  const [v] = fired("bounce-easing", corpus("design/motion-bounce.html"), "design/motion-bounce.html");
+  assert.equal(v.count, 3);
+  assert.deepEqual(fired("bounce-easing", corpus("design/motion-spring-clean.html"), "design/motion-spring-clean.html"), []);
+});
+
+test("bounce-easing: anticipation plus overshoot fires; a single overshoot settles like a spring", () => {
+  assert.equal(fired("bounce-easing", ".m { transition: transform 400ms cubic-bezier(0.68, -0.55, 0.265, 1.55) }").length, 1);
+  assert.deepEqual(fired("bounce-easing", ".m { transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1) }"), []);
+  assert.deepEqual(fired("bounce-easing", ".m { transition: transform 300ms linear(0, 0.42 12%, 0.99 31%, 1.09 42%, 1) }"), []);
+});
+
+test("bounce-easing: a curve token counts only when something reads it", () => {
+  const token = ":root { --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55) }";
+  assert.deepEqual(fired("bounce-easing", token), []);
+  assert.equal(fired("bounce-easing", `${token} .m { transition: transform 300ms var(--ease-bounce) }`).length, 1);
+});
+
+test("bounce-easing: a bounce-named animation that only pulses is SpinKit's loader, not a bounce", () => {
+  const pulse = "@keyframes bounce-soft { 0%, 100% { opacity: .5; transform: scale(.98) } 50% { opacity: 1; transform: scale(1) } } .s { animation: bounce-soft 1s infinite }";
+  assert.deepEqual(fired("bounce-easing", pulse), []);
+  const moves = "@keyframes bounce-soft { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-10px) } } .s { animation: bounce-soft 1s infinite }";
+  assert.equal(fired("bounce-easing", moves).length, 1, "the same name with movement in it");
+  assert.equal(fired("bounce-easing", ".s { animation: wobble 1s }").length, 1, "keyframes outside the file keep the name's verdict");
+});
+
+test("bounce-easing: keyframes that reverse twice are a bounce; rise-and-settle is not", () => {
+  const twice = "@keyframes drop { 0% { transform: translateY(0) } 30% { transform: translateY(-24px) } 50% { transform: translateY(0) } 70% { transform: translateY(-10px) } 100% { transform: translateY(0) } } .t { animation: drop 600ms }";
+  assert.equal(fired("bounce-easing", twice).length, 1);
+  const once = "@keyframes rise { 0% { transform: translateY(8px) } 60% { transform: translateY(-2px) } 80% { transform: translateY(0) } 100% { transform: translateY(0) } } .t { animation: rise 300ms }";
+  assert.deepEqual(fired("bounce-easing", once), []);
+});
+
+test("bounce-easing: animate-bounce fires with or without a variant; reduced-motion blocks are skipped", () => {
+  assert.equal(fired("bounce-easing", '<svg class="animate-bounce"></svg>', "a.html").length, 1);
+  assert.equal(fired("bounce-easing", '<svg class="motion-safe:animate-bounce"></svg>', "a.html").length, 1);
+  assert.deepEqual(fired("bounce-easing", "@media (prefers-reduced-motion: reduce) { .m { transition-timing-function: cubic-bezier(0.68, -0.55, 0.265, 1.55) } }"), []);
+});
+
+test("pulsing-dot: the corpus positive fires on the CSS and Tailwind forms, the partner is silent", () => {
+  const [v] = fired("pulsing-dot", corpus("design/live-dot.html"), "design/live-dot.html");
+  assert.equal(v.count, 2);
+  assert.deepEqual(fired("pulsing-dot", corpus("design/live-dot-clean.html"), "design/live-dot-clean.html"), []);
+});
+
+test("pulsing-dot: each gate beside its twin (forever, small, round, pulsing in place)", () => {
+  const kf = "@keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .4 } }";
+  const dot = (decls) => `${kf} .d { width: 8px; height: 8px; border-radius: 50%; ${decls} }`;
+  assert.equal(fired("pulsing-dot", dot("animation: pulse 1.6s infinite")).length, 1);
+  assert.deepEqual(fired("pulsing-dot", dot("animation: pulse 1.6s 1")), [], "finite");
+  assert.deepEqual(fired("pulsing-dot", dot("animation: pulse 1.6s infinite").replace("width: 8px; height: 8px", "width: 24px; height: 24px")), [], "over 16px");
+  assert.deepEqual(fired("pulsing-dot", dot("animation: pulse 1.6s infinite").replace("border-radius: 50%", "border-radius: 1px")), [], "square");
+  const float = "@keyframes float { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-8px) } } .d { width: 8px; height: 8px; border-radius: 50%; animation: float 3s infinite }";
+  assert.deepEqual(fired("pulsing-dot", float), [], "a dot that moves");
+  assert.equal(fired("pulsing-dot", ".d { width: 8px; height: 8px; border-radius: 50%; animation: ping 1s infinite }").length, 1, "keyframes outside the file: the name decides");
+  assert.deepEqual(fired("pulsing-dot", "@media (prefers-reduced-motion: reduce) { .d { width: 8px; height: 8px; border-radius: 50%; animation: ping 1s infinite } }"), []);
+});
+
+test("pulsing-dot: the Tailwind form needs a dot-sized box", () => {
+  assert.equal(fired("pulsing-dot", '<span class="h-2 w-2 rounded-full animate-ping"></span>', "a.html").length, 1);
+  assert.deepEqual(fired("pulsing-dot", '<span class="h-10 w-10 rounded-full animate-pulse"></span>', "a.html"), [], "a skeleton avatar");
+  assert.deepEqual(fired("pulsing-dot", '<span class="h-2 w-2 rounded animate-ping"></span>', "a.html"), [], "not round");
+});
+
+test("pulsing-dot: an approved live badge is one marker away", () => {
+  const badge = '<span class="h-2 w-2 rounded-full animate-ping"></span> <!-- anti-slop-allow: the brief asks for a live badge -->';
+  assert.deepEqual(fired("pulsing-dot", badge, "a.html"), []);
+});
+
+// ── classAll reads every class source (2.5.0) ────────────────────────────────
+
+test("classAll: cn(), multi-line class attributes and ternary arms", () => {
+  const count = (content, path) => (scanContent(content, path).find((v) => v.name === "icon-in-colored-circle") || { count: 0 }).count;
+  assert.equal(count('<div className={cn("rounded-full bg-blue-100 p-3", active && "ring-2")} />', "A.tsx"), 1);
+  assert.equal(count('<div\n  class="rounded-full\n   bg-blue-100 p-3">x</div>', "a.html"), 1);
+  assert.equal(count('<div className={on ? "rounded-full bg-blue-100" : "p-3"} />', "A.tsx"), 0, "exclusive arms never pair");
+  assert.equal(count('<div className={cn("rounded-full p-3", on ? "bg-blue-100" : "bg-white")} />', "A.tsx"), 1, "the arm that completes the set");
+  assert.equal(count('<div className={cn("rounded-full bg-blue-100 p-3", on ? "a" : "b")} />', "A.tsx"), 1, "a complete base counts once, not once per arm");
+  assert.equal(count('<span class="rounded-full">a</span><span class="bg-blue-100 p-3">b</span>', "a.html"), 0, "sibling elements never pair");
+});
+
+test("classAll: a multi-line set is reported, and waived, on the line where it starts", () => {
+  const circles = (html) => scanContent(html, "a.html").filter((v) => v.name === "icon-in-colored-circle");
+  assert.equal(circles('<div class="rounded-full\n bg-blue-100 p-3">x</div>')[0].line, 1);
+  assert.deepEqual(circles('<div data-note="anti-slop-allow: brand circle" class="rounded-full\n bg-blue-100 p-3">x</div>'), []);
+  assert.equal(circles('<div class="rounded-full\n bg-blue-100 p-3" data-note="anti-slop-allow: brand circle">x</div>').length, 1,
+    "a marker on a later line of the attribute is not on the set's line");
+});
+
+// ── Tailwind outline-none and the h-screen shell (2.5.0) ─────────────────────
+
+test("outline-none: a Tailwind outline kill with no focus replacement in its set fires", () => {
+  assert.ok(fires("outline-none", '<button class="focus:outline-none px-3">Save</button>', "a.html"));
+  assert.ok(fires("outline-none", '<button class="outline-hidden px-3">Save</button>', "a.html"));
+  assert.ok(!fires("outline-none", '<button class="focus:outline-none px-3">Save</button>\n<a class="focus-visible:ring-2">x</a>', "a.html"),
+    "a focus-visible utility anywhere in the file clears it");
+});
+
+test("outline-none: the canonical focus:ring replacement is not a removed indicator", () => {
+  assert.ok(!fires("outline-none", '<button class="focus:outline-none focus:ring-2 focus:ring-teal-500">Save</button>', "a.html"));
+  assert.ok(fires("outline-none", '<button class="focus:outline-none focus:ring-teal-500">Save</button>', "a.html"), "a ring colour with no width draws nothing");
+  assert.ok(!fires("outline-none", '<button class="focus-visible:outline-none focus-visible:ring-2">Save</button>', "a.html"));
+});
+
+test("vh-viewport-shell: h-screen and min-h-screen are the 100vh shell; a dvh fallback clears them", () => {
+  assert.ok(fires("vh-viewport-shell", '<main class="min-h-screen">x</main>', "a.html"));
+  assert.ok(fires("vh-viewport-shell", '<main class="h-screen">x</main>', "a.html"));
+  assert.ok(!fires("vh-viewport-shell", '<main class="min-h-screen min-h-dvh">x</main>', "a.html"));
+  assert.ok(!fires("vh-viewport-shell", '<main class="h-screen h-svh">x</main>', "a.html"));
+});
+
+test("positive-tabindex: a data attribute that ends in tabindex is not the attribute", () => {
+  assert.ok(!fires("positive-tabindex", '<div data-tabindex="3">x</div>', "a.html"));
+  assert.ok(fires("positive-tabindex", '<div tabindex="3">x</div>', "a.html"));
+});
+
+// ── generic-font reads the primary face (2.5.0) ──────────────────────────────
+
+test("generic-font: the font shorthand's family is read, and only the first non-generic family counts", () => {
+  assert.ok(fires("generic-font", 'body { font: 15px/1.4 "Inter", sans-serif }', "a.css"));
+  assert.ok(!fires("generic-font", 'body { font-family: "Söhne", Inter, sans-serif }', "a.css"), "Inter as a fallback");
+  assert.ok(!fires("generic-font", 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif }', "a.css"), "a system stack");
+  assert.ok(!fires("generic-font", 'body { font-family: "Inter Display", sans-serif }', "a.css"), "whole names: Inter Display is not Inter");
+  assert.ok(fires("generic-font", 'body { font-family: "Inter Tight", sans-serif }', "a.css"));
+  assert.ok(fires("generic-font", "export const A = () => <p style={{ fontFamily: 'Geist, sans-serif' }}>x</p>;", "A.tsx"));
+  assert.ok(fires("generic-font", "const inter = Inter({ subsets: ['latin'] });", "layout.tsx"), "the next/font constructor");
+});
+
+test("generic-font: a reflex face on a control is the label fallback when content has its own face", () => {
+  const withContent = 'body { font-family: "Instrument Serif", serif } .btn { font-family: Inter, sans-serif }';
+  assert.ok(!fires("generic-font", withContent, "a.css"));
+  assert.ok(fires("generic-font", ".btn { font-family: Inter, sans-serif }", "a.css"), "no other face: the control's face is the page's face");
+  assert.ok(fires("generic-font", 'body { font-family: "Instrument Serif", serif } .lede { font-family: Inter, sans-serif }', "a.css"), "Inter on content copy");
+  assert.ok(!fires("generic-font", "@font-face { font-family: 'Inter'; src: url(inter.woff2) }", "a.css"), "declaring a face is not setting it");
+});
+
+test("generic-font: a listed face matches however it is spelled, and only a listed face", () => {
+  assert.ok(fires("generic-font", "body { font: 16px/24px GeistSans, sans-serif }", "a.css"));
+  assert.ok(fires("generic-font", '.m { font-family: "Geist Sans", sans-serif }', "a.css"));
+  assert.ok(fires("generic-font", '.m { font-family: "Plus-Jakarta-Sans", sans-serif }', "a.css"));
+  assert.ok(!fires("generic-font", '.m { font-family: "Roboto Slab", serif }', "a.css"), "a different family that shares a word");
+});
+
+// ── marquee (2.5.0, P2) ──────────────────────────────────────────────────────
+
+test("marquee: an infinite sideways loop fires; a one-shot slide, a vertical slide and a scroll rail do not", () => {
+  assert.equal(fired("marquee", corpus("design/marquee-logos.html"), "design/marquee-logos.html").length, 1);
+  assert.deepEqual(fired("marquee", corpus("design/marquee-clean.html"), "design/marquee-clean.html"), []);
+  const loop = "@keyframes scroll { from { transform: translateX(0) } to { transform: translateX(-50%) } }";
+  assert.equal(fired("marquee", `${loop} .t { animation: scroll 30s linear infinite }`).length, 1);
+  assert.deepEqual(fired("marquee", `${loop} .t { animation: scroll 30s linear 1 }`), [], "finite");
+  assert.deepEqual(fired("marquee", "@keyframes nudge { from { transform: translateX(0) } to { transform: translateX(-10%) } } .t { animation: nudge 2s infinite }"), [], "under a fifth of the row");
+  assert.deepEqual(fired("marquee", "@keyframes pop { 50% { transform: translateX(-30%) scale(1.1); opacity: .5 } } .t { animation: pop 2s infinite }"), [], "a one-step body that also scales or fades");
+  assert.deepEqual(fired("marquee", `@media (prefers-reduced-motion: reduce) { ${loop} .t { animation: scroll 30s linear infinite } }`), []);
+  assert.equal(fired("marquee", "<marquee>Sale ends Friday</marquee>", "a.html").length, 1);
+});
+
+// ── background-pattern (2.5.0, P2) ───────────────────────────────────────────
+
+test("background-pattern: grids, dot fields and stripes fire; a rule, a one-pass band and a plain gradient do not", () => {
+  const [v] = fired("background-pattern", corpus("design/pattern-backgrounds.html"), "design/pattern-backgrounds.html");
+  assert.equal(v.count, 3);
+  assert.deepEqual(fired("background-pattern", corpus("design/pattern-backgrounds-clean.html"), "design/pattern-backgrounds-clean.html"), []);
+  const grid = ".g { background-image: linear-gradient(#ddd 1px, transparent 1px), linear-gradient(90deg, #ddd 1px, transparent 1px);";
+  assert.equal(fired("background-pattern", `${grid} background-size: 24px 24px }`).length, 1);
+  assert.deepEqual(fired("background-pattern", `${grid} }`), [], "no tile: not a repeating grid");
+  assert.deepEqual(fired("background-pattern", ".g { background-image: linear-gradient(#ddd 1px, transparent 1px); background-size: 24px 24px }"), [], "one hairline is a rule");
+  assert.deepEqual(fired("background-pattern", ".d { background: radial-gradient(circle, #ccc 6px, transparent 6px) 0 0 / 16px 16px }"), [], "a 6px stop is a spot, not a dot field");
+  assert.deepEqual(fired("background-pattern", ".s { background: repeating-linear-gradient(90deg, #eee 0, #ddd) }"), [], "an unpositioned last stop");
+});
+
+test("background-pattern: a stated surface is waived by name and the rest of the line still reads", () => {
+  const css = ".g { background-image: linear-gradient(#ddd 1px, transparent 1px), linear-gradient(90deg, #ddd 1px, transparent 1px); background-size: 24px 24px } /* anti-slop-allow: background-pattern -- the brand grid */";
+  assert.deepEqual(fired("background-pattern", css), []);
+  assert.deepEqual(names(corpus("../fixtures/technical-mono.html"), "../fixtures/technical-mono.html"), []);
+});
+
+// ── radial-halo (2.5.0, P2) ──────────────────────────────────────────────────
+
+test("radial-halo: a saturated halo on a dark page fires; a light page, a wash and a spot do not", () => {
+  assert.equal(fired("radial-halo", corpus("design/radial-halo.html"), "design/radial-halo.html").length, 1);
+  assert.deepEqual(fired("radial-halo", corpus("design/radial-halo-clean.html"), "design/radial-halo-clean.html"), []);
+  const halo = ".hero { background: radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.8), transparent 70%) }";
+  assert.equal(fired("radial-halo", `body { background: #0b0b10 } ${halo}`).length, 1);
+  assert.deepEqual(fired("radial-halo", `body { background: #ffffff } ${halo}`), [], "the same halo on a light page");
+  assert.deepEqual(fired("radial-halo", halo), [], "no declared page ground");
+  assert.deepEqual(fired("radial-halo", "body { background: #0b0b10 } .h { background: radial-gradient(circle, rgba(148, 148, 148, 0.9), transparent 70%) }"), [], "a neutral glow");
+  assert.deepEqual(fired("radial-halo", "body { background: #0b0b10 } .h { background: repeating-radial-gradient(circle, rgba(34, 211, 238, 0.8), transparent 70%) }"), [], "a repeating gradient is a pattern");
+});
+
+// ── gray-on-color (2.5.0, P2) ────────────────────────────────────────────────
+
+test("gray-on-color: grey ink on a colour fires in both forms; tints, states, siblings and arms do not", () => {
+  const [v] = fired("gray-on-color", corpus("design/gray-on-color.html"), "design/gray-on-color.html");
+  assert.equal(v.count, 2);
+  assert.deepEqual(fired("gray-on-color", corpus("design/gray-on-color-clean.html"), "design/gray-on-color-clean.html"), []);
+  assert.equal(fired("gray-on-color", '<p class="bg-blue-800 text-slate-500">x</p>', "a.html").length, 1);
+  assert.deepEqual(fired("gray-on-color", '<p class="bg-blue-800 text-gray-200">x</p>', "a.html"), [], "near-white ink is not mid-grey");
+  assert.deepEqual(fired("gray-on-color", '<p class="bg-blue-100 text-gray-500">x</p>', "a.html"), [], "a pale tint is not a colour surface");
+  assert.deepEqual(fired("gray-on-color", '<p class="hover:bg-blue-800 text-gray-500">x</p>', "a.html"), [], "a hover surface is a state");
+  assert.equal(fired("gray-on-color", ".p { background: #1e40af; color: #9ca3af }").length, 1);
+  assert.deepEqual(fired("gray-on-color", ".p { background: #1e40af; color: #e5e7eb }"), [], "off-white ink");
+  assert.deepEqual(fired("gray-on-color", ".p { background: #f3f4f6; color: #6b7280 }"), [], "grey on grey");
+});
+
+// ── skipped-heading (2.5.0, P2) ──────────────────────────────────────────────
+
+test("skipped-heading: a jump of more than one level fires; going up, the first heading and a footer's start do not", () => {
+  assert.equal(fired("skipped-heading", corpus("design/skipped-heading.html"), "design/skipped-heading.html").length, 1);
+  assert.deepEqual(fired("skipped-heading", corpus("design/skipped-heading-clean.html"), "design/skipped-heading-clean.html"), []);
+  const doc = (body) => `<!doctype html><html lang="en"><body>${body}</body></html>`;
+  assert.equal(fired("skipped-heading", doc("<h1>a</h1><h3>b</h3>"), "a.html").length, 1);
+  assert.deepEqual(fired("skipped-heading", doc("<h3>a</h3><h4>b</h4>"), "a.html"), [], "the first heading sets no level to skip from");
+  assert.deepEqual(fired("skipped-heading", doc("<h1>a</h1><h2>b</h2><h3>c</h3><h2>d</h2>"), "a.html"), [], "going back up");
+  assert.deepEqual(fired("skipped-heading", doc('<h1>a</h1><h2>b</h2><div role="contentinfo"><h4>c</h4></div>'), "a.html"), []);
+  assert.equal(fired("skipped-heading", doc("<h1>a</h1><h2>b</h2><footer><h4>c</h4><h6>d</h6></footer>"), "a.html").length, 1, "only the footer's first heading may start lower");
+  assert.deepEqual(fired("skipped-heading", "<h1>a</h1><h3>b</h3>", "fragment.html"), [], "a fragment is not a full document");
+  assert.deepEqual(fired("skipped-heading", doc("<h1>a</h1><pre>&lt;h3&gt;</pre><code><h3>x</h3></code>"), "a.html"), [], "markup quoted in code is not the outline");
+});
+
+// ── theater-slop-phrase (2.5.0, P2) ──────────────────────────────────────────
+
+test("theater-slop-phrase: the dismissive framing fires in both spellings; names and literal theaters do not", () => {
+  const theater = (text) => scanContent(text, "post.md").filter((v) => v.name === "theater-slop-phrase");
+  assert.equal(theater(corpus("prose/theater-framing.md"))[0].count, 2);
+  assert.deepEqual(theater(corpus("prose/theater-literal.md")), []);
+  assert.equal(theater("Security theater again.").length, 1, "a capitalised head word at a sentence start");
+  assert.deepEqual(theater("Seattle Kindness Theater presents a show."), [], "a Title Case name");
+  assert.deepEqual(theater("Security theaters across the region."), [], "the plural is a different noun");
+});
+
+// ── DESIGN.md: the palette exemption and design-system-font (2.5.0, P2) ──────
+
+import { mkdtempSync, writeFileSync as writeFile, mkdirSync, rmSync as rmDir } from "node:fs";
+import { tmpdir } from "node:os";
+import { findDesignMd, readDesignSystem, parseFrontmatter } from "../lib/design-detect.mjs";
+
+const DESIGN_MD = '---\ncolors:\n  violet: oklch(0.55 0.2 295)\n  ink: "#1f2937" # body text\ntypography:\n  body:\n    fontFamily: "Söhne, system-ui, sans-serif"\n---\n# System\n';
+
+function withDesignSystem(fn, designMd = DESIGN_MD) {
+  const root = mkdtempSync(join(tmpdir(), "anti-slop-ds-"));
+  try {
+    writeFile(join(root, "package.json"), "{}");
+    if (designMd !== null) writeFile(join(root, "DESIGN.md"), designMd);
+    mkdirSync(join(root, "src"));
+    return fn(root, readDesignSystem(findDesignMd(join(root, "src", "page.html"))));
+  } finally {
+    rmDir(root, { recursive: true, force: true });
+  }
+}
+
+test("DESIGN.md: the reader finds the nearest file, stops at the project root, and reads the frontmatter", () => {
+  const fm = parseFrontmatter(DESIGN_MD);
+  assert.equal(fm.colors.violet, "oklch(0.55 0.2 295)");
+  assert.equal(fm.colors.ink, "#1f2937", "a quoted value with a trailing comment");
+  assert.equal(fm.typography.body.fontFamily, "Söhne, system-ui, sans-serif");
+  withDesignSystem((root, ds) => {
+    assert.equal(ds.path, join(root, "DESIGN.md"));
+    assert.deepEqual(ds.purpleArc.map((c) => [c.name, c.hex, Math.round(c.H)]), [["violet", "#7e4ed7", 295]], "ink is off the arc");
+    assert.ok(ds.fonts.has("söhne") && !ds.fonts.has("system-ui"));
+  });
+  withDesignSystem((root, ds) => assert.equal(ds, null, "no DESIGN.md inside the project"), null);
+});
+
+// The purple exemption is per match: a match is the palette only near a declared hue.
+const designMd = (hex) => `---\ncolors:\n  brand: "${hex}"\n---\n`;
+const hexPage = (hex) => `.a { color: ${hex} } .b { border-color: ${hex} }`;
+const purpleHex = (css, ds) => scanContent(css, "a.css", { designSystem: ds }).filter((v) => v.name === "ai-purple-hex");
+
+test("DESIGN.md: a declared colour exempts purple only within 15 degrees of its own hue", () => {
+  withDesignSystem((root, ds) => {
+    assert.deepEqual(purpleHex(hexPage("#2563eb"), ds), [], "declared blue-600, page using blue-600");
+    assert.equal(purpleHex(hexPage("#7c3aed"), ds).length, 1, "declared blue-600 (hue about 263) leaves #7c3aed (about 293) a tell");
+  }, designMd("#2563eb"));
+  withDesignSystem((root, ds) => {
+    assert.deepEqual(purpleHex(hexPage("#7c3aed"), ds), [], "declared #7c3aed, page using #7c3aed");
+    assert.deepEqual(purpleHex(hexPage("#6d28d9"), ds), [], "violet-700 sits at the declared hue");
+    assert.equal(purpleHex(hexPage("#6366f1"), ds).length, 1, "indigo (about 277) is 16 degrees from the declared violet");
+  }, designMd("#7c3aed"));
+  assert.equal(purpleHex(hexPage("#7c3aed"), null).length, 1, "no DESIGN.md");
+});
+
+test("DESIGN.md: class matches and gradients are judged by their own colours, and a mixed match still fires", () => {
+  const page = '<a class="bg-violet-600 text-white">Go</a><div class="bg-gradient-to-r from-violet-500 to-violet-600"></div><p class="text-violet-700">x</p>';
+  const on = names(page, "page.html");
+  assert.ok(on.includes("ai-purple-class") && on.includes("purple-gradient-default"), JSON.stringify(on));
+  withDesignSystem((root, ds) => {
+    const off = scanContent(page, "page.html", { designSystem: ds }).map((v) => v.name);
+    assert.ok(!off.includes("ai-purple-class") && !off.includes("purple-gradient-default"), JSON.stringify(off));
+    const indigo = '<a class="bg-indigo-600">Go</a><p class="text-indigo-500">x</p>';
+    assert.ok(scanContent(indigo, "page.html", { designSystem: ds }).some((v) => v.name === "ai-purple-class"), "indigo beside a declared violet still fires");
+    const mixed = '<div class="bg-gradient-to-r from-violet-500 to-indigo-600"></div>';
+    assert.ok(scanContent(mixed, "page.html", { designSystem: ds }).some((v) => v.name === "purple-gradient-default"), "one undeclared stop keeps the gradient a tell");
+  });
+  withDesignSystem((root, ds) => {
+    assert.deepEqual(ds.purpleArc, []);
+    assert.ok(scanContent(page, "page.html", { designSystem: ds }).some((v) => v.name === "ai-purple-class"), "a brand off the purple arc exempts nothing");
+  }, designMd("#0f766e"));
+});
+
+test("DESIGN.md: a literal within 6 per channel of any declared colour is the palette", () => {
+  withDesignSystem((root, ds) => {
+    assert.deepEqual(purpleHex(hexPage("#7c3aed"), ds), [], "#7d3bec declared, #7c3aed used");
+  }, '---\ncolors:\n  accent: "#7d3bec"\n---\n');
+});
+
+test("design-system-font: a face outside the declared typography fires; the declared face and system stacks do not", () => {
+  withDesignSystem((root, ds) => {
+    const font = (css) => scanContent(css, "a.css", { designSystem: ds }).filter((v) => v.name === "design-system-font");
+    assert.equal(font('.hero { font-family: "Lobster", cursive }').length, 1);
+    assert.deepEqual(font('.hero { font-family: "Söhne", sans-serif }'), []);
+    assert.deepEqual(font(".hero { font-family: system-ui, sans-serif }"), []);
+    assert.deepEqual(scanContent('.hero { font-family: "Lobster", cursive }', "a.css").filter((v) => v.name === "design-system-font"), [], "no DESIGN.md, no drift");
+    assert.deepEqual(scanContent('.hero { font-family: "Lobster", cursive }', "tests/fixtures/a.css", { designSystem: ds }).filter((v) => v.name === "design-system-font"), [],
+      "a fixture file is off-system on purpose, and the product's DESIGN.md does not describe it");
+  });
+  assert.equal(fired("design-system-font", corpus("design/design-system/drift.css"), "design/design-system/drift.css").length, 0,
+    "the corpus harness and the CLI resolve DESIGN.md; a bare scanContent call does not");
 });

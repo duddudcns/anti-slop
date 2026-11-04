@@ -1,6 +1,6 @@
 ---
 name: anti-slop
-version: 2.4.1-vb.7
+version: 2.5.1-vb.7
 description: Catches AI-default tells and agentic shortcomings in user-facing output: banned vocabulary and structural cliches in prose, AI-default design and UI code, accessibility failures, and security holes or regressions in the code under review. Use when writing or revising user-facing prose (UI copy and microcopy, notifications, marketing and store listings, release notes, public docs), when designing or building UI, and when asked to review output, a file, a diff, or a PR for AI patterns ("/slop-check", "check this for AI patterns", "does this read as AI-written?"). Context-aware: yields to domain conventions and project requirements.
 ---
 
@@ -12,7 +12,7 @@ Apply rules with judgment, not mechanically. Rigid compliance creates its own de
 
 Four findings from the corpus data (`references/empirical-rankings.md`) sharpen this:
 
-- **Flag the unspecified default, not the value.** A tell is an unchosen default, not a banned token. Purple, a serif font, an em dash, or a broad `try/except` is a tell when the model reached for it by default and a legitimate choice when it was chosen for a reason. A line marked `anti-slop-allow: <reason>` (or `unslop-ignore`) is a deliberate choice; leave it alone. The marker must sit on the offending line itself (`references/choosing-with-intent.md` states the placement contract).
+- **Flag the unspecified default, not the value.** A tell is an unchosen default, not a banned token. Purple, a serif font, an em dash, or a broad `try/except` is a tell when the model reached for it by default and a legitimate choice when it was chosen for a reason. A line marked `anti-slop-allow: <reason>` (or `unslop-ignore`) is a deliberate choice; leave it alone, and `anti-slop-allow: <rule-id> -- <reason>` waives that one rule while the rest still read the line. The marker must sit on the offending line itself (`references/choosing-with-intent.md` states the placement contract).
 - **Concentration, not lone hits.** One "utilize," one "however," one em dash is not a tell; several in a short span is. Some high-frequency words ("however," "nuanced," "comprehensive," "utilize") match often but are rarely the real signal. Weight by density; the single-hit words in § Vocabulary are the exception, a finding on one occurrence.
 - **The loudest tells are structural, and no pattern matches them.** Sentence rhythm, sycophancy, fluent-but-empty paragraphs, tutorial-shaped code, hallucinated APIs, and code that ignores its neighbours are the top-cited tells in every domain, and every one of them is invisible to a word scan. A clean scan clears the cheap layer only. Route the rest to a semantic read (§ How to run this).
 - **Banning the old tells creates the new one.** Mechanical over-correction is itself detectable: staccato prose dodging every em dash, or cream-and-serif replacing purple. The fix is a deliberate choice with a reason (`references/choosing-with-intent.md`), not avoidance.
@@ -82,7 +82,7 @@ The banned-words list marks domain-specific terms inline. See the caveat at the 
 
 ### Vocabulary
 
-`references/banned-words.md` splits its list in three, and the split is the rule. Single-hit tells (`delve`, `embark`, `showcase`, `pivotal`, `tapestry`) are avoided in user-facing prose (§ Prose scope) on one occurrence. Cluster tells (`utilize`, `leverage`, `robust`, `comprehensive`, `nuanced`) pass once and are thinned when two or more gather in a document. The rest of the file is a plain-word preference and never a finding, so a sentence is not rewritten to dodge `validate` or `optimize`. Replace with plain, specific language: "use" not "utilize," "start" not "embark." Do not always pick the first alternative listed; vary replacements across outputs. When tempted by a fancy-sounding word, pick the one a person would say out loud, and keep the fancy word when it is the precise term.
+`references/banned-words.md` splits its list in three, and the split is the rule. Single-hit tells (`delve`, `embark`, `showcase`, `pivotal`, `tapestry`) are avoided in user-facing prose (§ Prose scope) on one occurrence. Cluster tells (`utilize`, `leverage`, `robust`, `comprehensive`, `nuanced`) pass once, and the same cluster-tier word twice in one document is the finding. The rest of the file is a plain-word preference and never a finding, so a sentence is not rewritten to dodge `validate` or `optimize`. Replace with plain, specific language: "use" not "utilize," "start" not "embark." Do not always pick the first alternative listed; vary replacements across outputs. When tempted by a fancy-sounding word, pick the one a person would say out loud, and keep the fancy word when it is the precise term.
 
 ### Phrases
 
@@ -179,7 +179,7 @@ This is the canonical minimum check. `references/self-check.md` carries the full
 Before handing back in-scope output (user-facing prose, UI work, or a review target), run through:
 
 - First word of the response: sycophantic or throat-clearing?
-- No single-hit words from `references/banned-words.md` in user-facing prose, and cluster words at most once? (the plain-word preferences in that file are not a check)
+- No single-hit words from `references/banned-words.md` in user-facing prose, and no cluster word used twice? (the same cluster-tier word twice in one document is the finding; the plain-word preferences in that file are not a check)
 - Sentence lengths vary?
 - Not forcing lists to exactly three items?
 - Em dashes counted in user-facing prose? (the scanner fires at five or more AND four per 1,000 words; a lone correct dash is clean; an internal document is out of scope)

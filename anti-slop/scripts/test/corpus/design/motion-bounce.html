@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order placed</title>
+<style>
+  :root { --radius: 8px; }
+  body { margin: 0; background: #ffffff; color: #1f2937; font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+  main { max-width: 40rem; margin: 0 auto; padding: 2rem 1rem; }
+  .toast { border: 1px solid #d1d5db; border-radius: var(--radius); padding: 1rem; }
+  .menu { border: 1px solid #d1d5db; border-radius: var(--radius); padding: 0.5rem; }
+  .cue { display: block; margin: 2rem auto 0; color: #4b5563; }
+  @media (prefers-reduced-motion: no-preference) {
+    .toast { animation: bounce-in 600ms both; }
+    .menu { transition: transform 400ms cubic-bezier(0.68, -0.55, 0.265, 1.55); }
+  }
+  @keyframes bounce-in {
+    0% { transform: translateY(0); }
+    30% { transform: translateY(-24px); }
+    50% { transform: translateY(0); }
+    70% { transform: translateY(-10px); }
+    100% { transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cue { animation: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Order placed</h1>
+  <div class="toast" role="status">Your order is on its way. Track it from the orders page.</div>
+  <nav class="menu" aria-label="Account"><a href="/orders">Orders</a> <a href="/settings">Settings</a></nav>
+  <svg class="cue animate-bounce" aria-hidden="true" width="24" height="24" viewBox="0 0 24 24"><path d="M12 5v14M5 12l7 7 7-7" stroke="currentColor" fill="none"/></svg>
+</main>
+</body>
+</html>

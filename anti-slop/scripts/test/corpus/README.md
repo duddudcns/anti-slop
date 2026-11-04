@@ -90,10 +90,24 @@ positive or gained a false positive.
    rule row in `baseline.json` loses a true positive or gains a false positive, with
    `useeffect-setstate`, the known false negative, as the one exemption.
 
+Every new rule ships with a positive and a clean partner in the same change; a narrowing
+ships with the should-flag twin it must not swallow. More precisely, every exemption a rule
+carries ships with a should-flag twin the exemption must not swallow, as a probe in the rule's
+test file or as a construct in a fixture: an exemption written without one fails open, and the
+first sign is a whole class of real findings gone quiet. A rule cut from a release has its
+construct removed from the shared positive in the same commit, or its label kept as a known
+false negative with no severity, so a shared positive never carries an unlabelled construct.
+
+A fixture is corrected, never relabelled, when a new rule proves it carries a real defect: a
+clean control gets the computed fix, and a positive planting another tell is tuned so it plants
+only that tell. The 2.5.0 contrast and type-floor corrections and the two control-face fixture
+corrections record the change and the measured before and after values in each entry's
+`note` in `labels.json`.
+
 Two path traps worth knowing:
 - Code samples are scanned under the exact path you put in `labels.json`. Positives that rely
   on `skipInTests`-gated rules (`innerhtml-usage`, `hardcoded-secret`, `boilerplate-marker`,
-  `dead-branch`, `cast-to-any`) need a
+  `dead-branch`, `cast-to-any`, and the design rule `design-system-font`) need a
   **non**-test-looking path (e.g. `code/auth-handler.js`) to actually fire; a deliberately
   test-shaped path (e.g. `code/auth.test.js`) is how you build a *tricky-clean negative* that
   proves the skip works.

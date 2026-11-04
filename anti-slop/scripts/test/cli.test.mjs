@@ -303,15 +303,17 @@ test("A3: an unreadable file aborts before anything is recorded", () => {
 
 // `fix` and `line` joined every shape in 2.4.0: a finding that names only the offence is
 // incomplete under the remediation floor, and a consumer of --format json now gets the
-// remediation and the location without re-deriving either.
+// remediation and the location without re-deriving either. The UI tells gained `evidence`
+// (the first hit's matched text) and `lines` (every contributing line) in 2.5.0; code
+// patterns carry no evidence, because the matched text of a credential rule is the secret.
 const VIOLATION_KEYS = {
   "banned-word": ["confidence", "count", "desc", "fix", "line", "severity", "type", "word"],
   "banned-phrase": ["confidence", "count", "desc", "fix", "line", "phrase", "severity", "type"],
   "text-construct": ["confidence", "count", "desc", "fix", "line", "name", "severity", "type"],
   "emoji": ["confidence", "count", "desc", "fix", "line", "severity", "type"],
-  "design-tell": ["confidence", "count", "desc", "fix", "line", "mode", "name", "severity", "type"],
-  "native-tell": ["confidence", "count", "desc", "fix", "line", "mode", "name", "severity", "type"],
-  "code-pattern": ["confidence", "count", "desc", "fix", "line", "name", "severity", "type"],
+  "design-tell": ["confidence", "count", "desc", "evidence", "fix", "line", "lines", "mode", "name", "severity", "type"],
+  "native-tell": ["confidence", "count", "desc", "evidence", "fix", "line", "lines", "mode", "name", "severity", "type"],
+  "code-pattern": ["confidence", "count", "desc", "fix", "line", "lines", "name", "severity", "type"],
 };
 
 test("D5: every violation type in --format json carries its exact documented key set", () => {
@@ -641,6 +643,97 @@ test("history and stats on an untouched project create no .anti-slop directory",
         `${cmd} is a read: it must leave no trace in a project that never opted in with --record`,
       );
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a scoped waiver naming an unknown rule id is reported on stderr, never on stdout", () => {
+  const dir = scratchDir();
+  try {
+    writeFileSync(join(dir, "page.css"), "h1 { background-clip: text; } /* anti-slop-allow: no-such-rule -- brand */\n");
+    const result = runCli(["--format", "json", "page.css"], dir);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /page\.css:1: anti-slop-allow names unknown rule id\(s\) no-such-rule; the waiver suppresses nothing/);
+    assert.ok(JSON.parse(result.stdout).files[0].violations.some((v) => v.name === "gradient-text"));
+    const quiet = runCli(["--quiet", "page.css"], dir);
+    assert.equal(quiet.stderr, "");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── Coverage notes (2.5.0) ───────────────────────────────────────────────────
+// The report stays on stdout, which callers pipe; what a static scan cannot see goes to
+// stderr in text mode and into a `coverage` array in JSON.
+
+test("coverage: a component scan names its blind spot on stderr and adds nothing to stdout", () => {
+  const dir = scratchDir();
+  try {
+    writeFileSync(join(dir, "Card.tsx"), "export const Card = () => <div className=\"p-4\">x</div>;\n");
+    const text = runCli(["Card.tsx"], dir);
+    assert.equal(text.status, 0, text.stderr);
+    assert.equal(text.stdout, "Card.tsx: clean\n");
+    assert.match(text.stderr, /^coverage: contrast and type metrics read declared CSS, inline styles and CSS-in-JS only; Tailwind utilities and cross-file cascades are not resolved \(1 file\)\n/);
+    assert.match(text.stderr, /A clean result is a floor: this is a static scan of declared source, not a rendered page\.\n$/);
+    const json = runCli(["--format", "json", "Card.tsx"], dir);
+    const parsed = JSON.parse(json.stdout);
+    assert.ok(Array.isArray(parsed.coverage));
+    assert.deepEqual(parsed.coverage.map((c) => c.files), [["Card.tsx"]]);
+    assert.equal(json.stderr, "", "JSON carries the notes in the object, not on stderr");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("coverage: an HTML-only run that scans fully prints nothing on stderr", () => {
+  const dir = scratchDir();
+  try {
+    writeFileSync(join(dir, "page.html"), "<!doctype html><html lang=\"en\"><body><p>Hi</p></body></html>\n");
+    const result = runCli(["page.html"], dir);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(runCli(["--format", "json", "page.html"], dir).stdout).coverage, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("coverage: one line per distinct note with its file count, and --quiet drops them", () => {
+  const dir = scratchDir();
+  try {
+    writeFileSync(join(dir, "a.css"), ".a { color: red; }\n");
+    writeFileSync(join(dir, "b.css"), ".b { color: red; }\n");
+    writeFileSync(join(dir, "job.py"), "x = 1\n");
+    const result = runCli(["a.css", "b.css", "job.py"], dir);
+    assert.match(result.stderr, /coverage: markup rules \(missing-alt, classAll fingerprints\) do not apply \(2 files\)/);
+    assert.match(result.stderr, /coverage: design tells not run \(not a UI surface\) \(1 file\)/);
+    assert.equal((result.stderr.match(/A clean result is a floor/g) || []).length, 1);
+    assert.equal(runCli(["--quiet", "a.css", "job.py"], dir).stderr, "");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("coverage: a declared purple in DESIGN.md is named with the hue window it exempts", () => {
+  const dir = scratchDir();
+  try {
+    writeFileSync(join(dir, "package.json"), "{}");
+    writeFileSync(join(dir, "DESIGN.md"), "---\ncolors:\n  violet: oklch(0.55 0.2 295)\n---\n");
+    writeFileSync(join(dir, "page.html"), '<a class="bg-violet-600 text-violet-700">Go</a>\n');
+    const result = runCli(["page.html"], dir);
+    assert.equal(result.stdout, "page.html: clean\n");
+    assert.match(result.stderr, /coverage: purple palette: DESIGN\.md declares violet \(#7e4ed7\); purple within 15 degrees of its hue is the palette \(1 file\)/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a text finding that spans several lines names each of them", () => {
+  const dir = scratchDir();
+  try {
+    writeFileSync(join(dir, "a.css"), ".a { color: #7c3aed }\n.b { padding: 4px }\n.c { border-color: #6d28d9 }\n");
+    const result = runCli(["a.css"], dir);
+    assert.match(result.stdout, /\(ai-purple-hex, lines 1, 3, Pattern smell\)/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

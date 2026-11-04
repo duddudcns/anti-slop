@@ -449,7 +449,7 @@ Only annotate types when the compiler can't infer or when the inferred type is w
 ```python
 # BAD -- the code knows where it was written, not where it runs
 API_URL = "http://localhost:8000"
-DATA_DIR = "/Users/dev/project/data"
+DATA_DIR = "/home/dev/project/data"
 BUCKET = "acme-prod-uploads"
 
 # GOOD -- one place, one documented default

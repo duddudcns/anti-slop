@@ -4,6 +4,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { measure, loadLabels, expectedIds, ruleName, CORPUS_DIR } from "../measure.mjs";
 import { scanContent } from "../lib/scan.mjs";
+import { findDesignMd, readDesignSystem } from "../lib/design-detect.mjs";
 import {
   DESIGN_PATTERNS,
   CODE_PATTERNS,
@@ -28,7 +29,10 @@ const VALID_RULE_IDS = new Set([
 
 // Prose scope `all`, as in measure.mjs: the corpus labels the rules, not a project's policy.
 const scan = (entry) =>
-  scanContent(readFileSync(join(CORPUS_DIR, entry.file), "utf8"), entry.file, { proseScope: "all" });
+  scanContent(readFileSync(join(CORPUS_DIR, entry.file), "utf8"), entry.file, {
+    proseScope: "all",
+    designSystem: readDesignSystem(findDesignMd(join(CORPUS_DIR, entry.file))),
+  });
 
 // ── Corpus shape ─────────────────────────────────────────────────────────────
 

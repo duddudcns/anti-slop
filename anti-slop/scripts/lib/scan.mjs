@@ -6,6 +6,7 @@ import {
   BANNED_WORD_REGEXES,
   LOW_CONFIDENCE_WORDS,
   BANNED_PHRASES,
+  BANNED_PHRASE_REGEXES,
   DESIGN_PATTERNS,
   CODE_PATTERNS,
   TEXT_CONSTRUCTS,
@@ -26,6 +27,7 @@ import {
   WEB_SURFACE_EXTENSIONS,
   NATIVE_UI_EXTENSIONS,
   CONCENTRATION,
+  KNOWN_RULE_IDS,
   BANNED_WORD_CONFIDENCE,
   BANNED_PHRASE_CONFIDENCE,
   EMDASH_CONFIDENCE,
@@ -35,6 +37,7 @@ import {
   EMDASH_FIX,
   EMOJI_FIX,
 } from "./rules.mjs";
+import { makeContext, matchingClassSets, parseWaiver, waiverCovers } from "./design-detect.mjs";
 
 // ── Concentration gate ──
 // A rule declaring mode CONCENTRATION reports nothing until its match count reaches
@@ -46,8 +49,8 @@ function meetsThreshold(pat, count) {
 }
 
 // ── Prose noise-stripping: keep only the author's own prose. Blanks fenced code,
-// inline code, double-quoted spans, blockquotes, YAML frontmatter, and any line
-// carrying the escape-hatch marker. Line count is preserved so line numbers hold. ──
+// inline code, double-quoted spans (straight or typographic), blockquotes, YAML frontmatter,
+// and any line carrying the escape-hatch marker. Line count is preserved so line numbers hold. ──
 function stripProseNoise(content) {
   const lines = content.split("\n");
   const out = [];
@@ -61,7 +64,7 @@ function stripProseNoise(content) {
     if (inFence) { out.push(""); continue; }
     if (/^\s*>/.test(line)) { out.push(""); continue; }
     if (ESCAPE_HATCH.test(line)) { out.push(""); continue; }
-    line = line.replace(/`[^`]*`/g, " ").replace(/"[^"\n]*"/g, " ");
+    line = line.replace(/`[^`]*`/g, " ").replace(/"[^"\n]*"/g, " ").replace(/\u201C[^\u201D\n]*\u201D/g, " ");
     out.push(line);
   }
   return out.join("\n");
@@ -283,33 +286,14 @@ export function fileGuardOk(pat, content) {
 }
 
 // ── Class-attribute token sets ──
-// Utility-class order inside a `class=` attribute is arbitrary, so a fingerprint rule has
-// to match the token SET, not a sequence. Scoped to one attribute value: a whole-line AND
-// would match `class="rounded-xl"` on one element and `class="shadow-sm border"` on the
-// next, which is two elements rather than one fingerprint.
-const CLASS_ATTR = /\b(?:class|className)\s*=\s*(?:"([^"]*)"|'([^']*)'|\{\s*`([^`]*)`\s*\}|\{\s*"([^"]*)"\s*\}|\{\s*'([^']*)'\s*\})/g;
-
-function classTokenSets(line) {
-  const sets = [];
-  const re = globalize(CLASS_ATTR);
-  re.lastIndex = 0;
-  let m;
-  while ((m = re.exec(line)) !== null) {
-    const value = m[1] ?? m[2] ?? m[3] ?? m[4] ?? m[5] ?? "";
-    sets.push(value.split(/\s+/).filter(Boolean));
-  }
-  return sets;
-}
-
-// One hit per class attribute whose token set contains every required token.
-function countClassAll(line, required) {
-  let hits = 0;
-  for (const tokens of classTokenSets(line)) {
-    const complete = required.every((req) =>
-      typeof req === "string" ? tokens.includes(req) : tokens.some((t) => req.test(t)));
-    if (complete) hits += 1;
-  }
-  return hits;
+// Utility-class order inside a class source is arbitrary, so a fingerprint rule matches the
+// token SET, not a sequence, and one source at a time: a whole-line AND would match
+// `class="rounded-xl"` on one element and `class="shadow-sm border"` on the next. Sources
+// come from design-detect's classTokenSets (class=, className=, cn/clsx/twMerge, multi-line
+// attributes), and the two arms of a ternary never pair.
+function classAllMatches(ctx, required) {
+  return matchingClassSets(ctx.classSets, (tokens) => required.every((req) =>
+    typeof req === "string" ? tokens.includes(req) : tokens.some((t) => req.test(t))));
 }
 
 function globalize(re) {
@@ -347,13 +331,15 @@ function lineIndexer(text) {
 
 // Every occurrence of a literal phrase, by line (phrases are matched with indexOf).
 function phraseLines(hay, phrase) {
+  const re = BANNED_PHRASE_REGEXES.get(phrase);
+  if (!re) return [];
   const lineOf = lineIndexer(hay);
+  const g = freshGlobal(re);
   const out = [];
-  let from = 0;
-  let idx;
-  while ((idx = hay.indexOf(phrase, from)) !== -1) {
-    out.push(lineOf(idx));
-    from = idx + phrase.length;
+  let m;
+  while ((m = g.exec(hay)) !== null) {
+    if (m[0] === "") { g.lastIndex++; continue; }
+    out.push(lineOf(m.index));
   }
   return out;
 }
@@ -376,6 +362,23 @@ function firstMatchLine(text, re) {
   return m ? lineAtIndex(text, m.index) : null;
 }
 
+// Whole-word phrase matches (rules.mjs BANNED_PHRASE_REGEXES): the count and the line of
+// the first one, or null.
+function phraseMatches(hay, phrase) {
+  const re = BANNED_PHRASE_REGEXES.get(phrase);
+  if (!phrase || !re) return null;
+  const g = freshGlobal(re);
+  let count = 0;
+  let first = -1;
+  let m;
+  while ((m = g.exec(hay)) !== null) {
+    if (first === -1) first = m.index;
+    count++;
+    if (m[0].length === 0) g.lastIndex++;
+  }
+  return count ? { count, line: lineAtIndex(hay, first) } : null;
+}
+
 function resolveSeverity(sev, count) {
   return typeof sev === "function" ? sev(count) : sev;
 }
@@ -390,31 +393,105 @@ function hasContextException(lowerWord, contentLower) {
   return Boolean(exceptions && exceptions.some((re) => re.test(contentLower)));
 }
 
-// ── Count regex matches per non-suppressed, non-escaped line ──
-// Three counting shapes, in precedence order: `classAll` (unordered class-token set),
-// `count` (a per-line predicate for tells whose arithmetic a regex cannot state -- see
-// `token-drift-spacing`, which has to know that 13 is off a 4px grid and 16 is not), and
-// the default `pattern` match count.
-// Returns { count, line }: the total and the 1-based line of the first line that
-// contributed to it, which is what the finding reports.
-function countLinePattern(lines, pat) {
-  const g = pat.classAll || pat.count ? null : globalize(pat.pattern);
-  let count = 0;
-  let line = null;
-  const occ = [];
-  for (let i = 0; i < lines.length; i++) {
-    const text = lines[i];
-    if (ESCAPE_HATCH.test(text)) continue;
-    if (pat.suppress && pat.suppress.test(text)) continue;
-    let hits = 0;
-    if (pat.classAll) hits = countClassAll(text, pat.classAll);
-    else if (pat.count) hits = pat.count(text);
-    else { const m = text.match(g); hits = m ? m.length : 0; }
-    if (hits > 0 && line === null) line = i + 1;
-    for (let k = 0; k < hits; k++) occ.push(i + 1);
-    count += hits;
+// ── Count a table rule's hits on the lines it may see ──
+// Four counting shapes, in precedence order: `hits` (a file-level detector over the shared
+// design-detect context, for tells that need the stylesheet rather than a line: a colour
+// pair, a block's font metrics), `classAll` (unordered class-token set), `count` (a per-line
+// predicate for tells whose arithmetic a regex cannot state -- see `token-drift-spacing`,
+// which has to know that 13 is off a 4px grid and 16 is not), and the default `pattern`
+// match count.
+// Returns { count, line, lines, evidence }: the total, the 1-based line of the first hit
+// (what the finding reports), every contributing line (sorted, at most 20) and the first
+// hit's matched text. `escapedOnly` inverts the hatch test for the suppressed capture.
+// `occ` is every hit's line, one entry per hit and uncapped, for opts.allOccurrences.
+const MAX_LINES = 20;
+
+function summariseHits(hits) {
+  hits.sort((a, b) => a.line - b.line);
+  const lines = [...new Set(hits.map((h) => h.line))].slice(0, MAX_LINES);
+  const first = hits[0];
+  const evidence = first && first.evidence ? String(first.evidence).replace(/\s+/g, " ").trim().slice(0, 120) : null;
+  return { count: hits.length, line: first ? first.line : null, lines, evidence, occ: hits.map((h) => h.line) };
+}
+
+function countLinePattern(src, pat, escapedOnly = false) {
+  const lineOk = (n) => waiverCovers(src.waiverAt(n), pat.name) === escapedOnly;
+  if (pat.hits) {
+    // `gate(hits)` runs after the hatch: a rule whose verdict is a combination or a
+    // repetition decides it on the hits that survive, so a hatched leg completes nothing.
+    const kept = (pat.hits(src.ctx) || []).filter((h) => Number.isInteger(h.line) && lineOk(h.line));
+    return summariseHits(pat.gate ? pat.gate(kept) : kept);
   }
-  return { count, line, occ };
+  if (pat.classAll) {
+    return summariseHits(classAllMatches(src.ctx, pat.classAll)
+      .filter((set) => lineOk(set.line) && !(pat.suppress && pat.suppress.test(src.lines[set.line - 1] || "")))
+      .map((set) => ({ line: set.line, evidence: set.tokens.join(" ") })));
+  }
+  const g = pat.count ? null : globalize(pat.pattern);
+  const hits = [];
+  for (let i = 0; i < src.lines.length; i++) {
+    if (!lineOk(i + 1)) continue;
+    const text = src.lines[i];
+    if (pat.suppress && pat.suppress.test(text)) continue;
+    if (pat.count) {
+      const n = pat.count(text);
+      for (let k = 0; k < n; k++) hits.push({ line: i + 1, evidence: text });
+    } else {
+      for (const m of text.match(g) || []) hits.push({ line: i + 1, evidence: m });
+    }
+  }
+  return summariseHits(hits);
+}
+
+// The per-file views the table rules read. UI tells (and a code rule that declares
+// `blankComments`) match the comment-blanked text, since a commented-out declaration is not
+// on the page; every other code rule matches raw lines, because comments are what several of
+// them exist to read. Both views read the escape hatch from the RAW line, where the marker
+// lives, and share one design-detect context, built on first use so a file no rule reaches
+// past its raw lines never pays for it.
+// VB: the raw view's lines are rewritten so a `'`/REM comment reads as `//` (the shared
+// comment-slop rules key on C-family markers): string-masked for COMMENT_MARKER_RULES,
+// unmasked for every other rule. `vbRaw(pat)` picks that view; it is null for other files.
+function ruleSources(content, ext, designSystem, isVb = false) {
+  const rawLines = content.split("\n");
+  let ctx = null;
+  const context = () => ctx || (ctx = makeContext(content, ext, { designSystem }));
+  const waivers = new Map();
+  const waiverAt = (n) => {
+    if (!waivers.has(n)) waivers.set(n, parseWaiver(rawLines[n - 1] ?? "", KNOWN_RULE_IDS));
+    return waivers.get(n);
+  };
+  const raw = { lines: rawLines, rawLines, text: content, waiverAt, get ctx() { return context(); } };
+  let vbViews = null;
+  const vbRaw = isVb ? (pat) => {
+    vbViews ||= {
+      masked: { ...raw, lines: vbCommentNormalizedLines(content), get ctx() { return context(); } },
+      unmasked: { ...raw, lines: vbCommentNormalizedLines(content, false), get ctx() { return context(); } },
+    };
+    return COMMENT_MARKER_RULES.has(pat.name) ? vbViews.masked : vbViews.unmasked;
+  } : null;
+  return {
+    waiverAt,
+    vbRaw,
+    raw,
+    blanked: { get lines() { return context().lines; }, rawLines, waiverAt, get text() { return context().text; }, get ctx() { return context(); } },
+  };
+}
+
+// How a suppressed finding was waived: the line-wide hatch or a waiver naming the rule.
+function suppressedBy(src, line) {
+  const w = line ? src.waiverAt(line) : null;
+  return w && !w.all ? `waiver:${[...w.rules].join(",")}` : "escape-hatch";
+}
+
+// A scoped waiver naming an id no rule has suppresses nothing; the caller hears about it.
+function unknownWaivers(rawLines) {
+  const out = [];
+  rawLines.forEach((raw, i) => {
+    const w = parseWaiver(raw, KNOWN_RULE_IDS);
+    if (w && w.unknown && w.unknown.length) out.push({ line: i + 1, unknown: w.unknown });
+  });
+  return out;
 }
 
 // ── Suppressed-finding capture (opts.collectSuppressed) ──
@@ -435,7 +512,7 @@ function extractEscapeHatchedProse(content) {
     if (inFence) { out.push(""); continue; }
     if (/^\s*>/.test(line)) { out.push(""); continue; }
     if (!ESCAPE_HATCH.test(line)) { out.push(""); continue; }
-    line = line.replace(/`[^`]*`/g, " ").replace(/"[^"\n]*"/g, " ");
+    line = line.replace(/`[^`]*`/g, " ").replace(/"[^"\n]*"/g, " ").replace(/\u201C[^\u201D\n]*\u201D/g, " ");
     out.push(line);
   }
   return out.join("\n");
@@ -453,27 +530,6 @@ function extractEscapeHatchedComments(content, isVb = false) {
     .join("\n");
 }
 
-// Mirror of countLinePattern that counts only escape-hatched lines. A suppress-regex
-// guard still applies: if it matches, the rule would not have fired even without the
-// escape hatch, so that hit is a rule-internal exclusion, not a suppressed finding.
-function countLinePatternOnEscapedLines(lines, pat) {
-  const g = pat.classAll || pat.count ? null : globalize(pat.pattern);
-  let count = 0;
-  let line = null;
-  for (let i = 0; i < lines.length; i++) {
-    const text = lines[i];
-    if (!ESCAPE_HATCH.test(text)) continue;
-    if (pat.suppress && pat.suppress.test(text)) continue;
-    let hits = 0;
-    if (pat.classAll) hits = countClassAll(text, pat.classAll);
-    else if (pat.count) hits = pat.count(text);
-    else { const m = text.match(g); hits = m ? m.length : 0; }
-    if (hits > 0 && line === null) line = i + 1;
-    count += hits;
-  }
-  return { count, line };
-}
-
 // Additive-only: computes what WOULD have fired for two deliberate-suppression paths
 // -- (a) escape-hatched lines, (b) an allowedWords config entry -- so the dashboard can
 // show suppressed activity without ever touching the active `violations` array above it.
@@ -481,7 +537,7 @@ function countLinePatternOnEscapedLines(lines, pat) {
 // banned-phrase, design-tell, code-pattern. text-construct and emoji are deferred:
 // their per-line escape semantics differ (density/whole-document rules), so counting
 // a hatched line as one suppressed construct would misstate what was avoided.
-function collectSuppressedViolations({ content, lines, vbRawLines, isProse, isCode, isVb, isStyle, isTestFile, proseScan, allowedWords, contentLower }) {
+function collectSuppressedViolations({ content, sources, isProse, isCode, isVb, isStyle, isTestFile, proseScan, allowedWords, contentLower }) {
   const suppressed = [];
 
   // (a) escape-hatch: words/phrases/design/code hits confined to escape-hatched lines.
@@ -513,19 +569,11 @@ function collectSuppressedViolations({ content, lines, vbRawLines, isProse, isCo
   // Phrases mirror the active path on BOTH surfaces. Guarding this branch on isProse alone
   // meant an escape-hatched phrase in a code file could not even be reported as suppressed.
   if (isProse || isCode) {
-    const hatchedHay = (isProse ? extractEscapeHatchedProse(content) : isVb ? vbProseOnly(content, true) : extractEscapeHatchedLines(content)).toLowerCase();
+    const hatchedHay = isProse ? extractEscapeHatchedProse(content) : isVb ? vbProseOnly(content, true) : extractEscapeHatchedLines(content);
     for (const phrase of BANNED_PHRASES) {
-      if (!phrase) continue;
-      const firstIdx = hatchedHay.indexOf(phrase);
-      if (firstIdx === -1) continue;
-      let count = 0;
-      let searchFrom = 0;
-      let idx;
-      while ((idx = hatchedHay.indexOf(phrase, searchFrom)) !== -1) {
-        count++;
-        searchFrom = idx + phrase.length;
-      }
-      const lineNum = hatchedHay.substring(0, firstIdx).split("\n").length;
+      const found = phraseMatches(hatchedHay, phrase);
+      if (!found) continue;
+      const { count, line: lineNum } = found;
       suppressed.push({
         type: "banned-phrase", phrase, line: lineNum, count,
         severity: "medium",
@@ -539,8 +587,11 @@ function collectSuppressedViolations({ content, lines, vbRawLines, isProse, isCo
 
   if (isStyle) {
     for (const pat of DESIGN_PATTERNS) {
-      if (!fileGuardOk(pat, content)) continue;
-      const { count, line } = countLinePatternOnEscapedLines(lines, pat);
+      if (isTestFile && pat.skipInTests) continue;
+      if (!fileGuardOk(pat, sources.blanked.text)) continue;
+      // A suppress-regex guard still applies inside: if it matches, the rule would not have
+      // fired even without the escape hatch, so that hit is a rule-internal exclusion.
+      const { count, line } = countLinePattern(sources.blanked, pat, true);
       if (meetsThreshold(pat, count)) {
         suppressed.push({
           type: "design-tell", name: pat.name, count, line,
@@ -548,7 +599,7 @@ function collectSuppressedViolations({ content, lines, vbRawLines, isProse, isCo
           confidence: pat.confidence, mode: pat.mode,
           fix: pat.fix,
           desc: `${pat.desc} (${count}x)`,
-          suppressed: true, suppressedBy: "escape-hatch",
+          suppressed: true, suppressedBy: suppressedBy(sources.blanked, line),
         });
       }
     }
@@ -558,10 +609,10 @@ function collectSuppressedViolations({ content, lines, vbRawLines, isProse, isCo
     for (const pat of CODE_PATTERNS) {
       if (isTestFile && pat.skipInTests) continue;
       if (isVb && VB_REPLACED_RULES.has(pat.name)) continue;
-      if (!fileGuardOk(pat, content)) continue;
-      // Same line view per rule as the active path (raw strings for non-marker VB rules).
-      const patLines = isVb && !COMMENT_MARKER_RULES.has(pat.name) ? vbRawLines : lines;
-      const { count, line } = countLinePatternOnEscapedLines(patLines, pat);
+      // Same line view per rule as the active path (codeSource in scanContent).
+      const source = isVb && !pat.blankComments ? sources.vbRaw(pat) : pat.blankComments ? sources.blanked : sources.raw;
+      if (!fileGuardOk(pat, source.text)) continue;
+      const { count, line } = countLinePattern(source, pat, true);
       if (meetsThreshold(pat, count)) {
         suppressed.push({
           type: "code-pattern", name: pat.name, count, line,
@@ -569,7 +620,7 @@ function collectSuppressedViolations({ content, lines, vbRawLines, isProse, isCo
           confidence: pat.confidence,
           fix: pat.fix,
           desc: `${pat.desc} (${count}x)`,
-          suppressed: true, suppressedBy: "escape-hatch",
+          suppressed: true, suppressedBy: suppressedBy(source, line),
         });
       }
     }
@@ -696,12 +747,16 @@ export function proseScopeFor(filePath, opts = {}) {
 // findings that a deliberate suppression choice hid -- an escape-hatched line or an
 // allowedWords config entry -- flagged { suppressed: true, suppressedBy }. Default-off
 // behavior is byte-identical to calling scanContent(content, filePath) with no opts.
+// opts.warnings (an array): receives { file, line, unknown } for each scoped waiver that names
+// a rule id no rule has, which therefore suppresses nothing.
+// opts.designSystem: the file's DESIGN.md as design-detect readDesignSystem() returns it, or
+// null. The CLI and the corpus harness resolve it per file; an embedder may pass its own.
 export function scanContent(content, filePath, opts = {}) {
   const violations = [];
   // Binary read as UTF-8 (a PNG, a font, an archive) decodes to replacement characters and
   // stray code points that satisfy Unicode property escapes; text never carries a NUL byte
   // and binary carries one within its first few bytes. No rule applies to it.
-  if (content.includes(" ")) return violations;
+  if (content.includes("\u0000")) return violations;
   const ext = extname(filePath).toLowerCase();
   const isProse = PROSE_EXTENSIONS.has(ext);
   if (isProse && !proseScopeFor(filePath, opts).inScope) return violations;
@@ -767,19 +822,11 @@ export function scanContent(content, filePath, opts = {}) {
   if (isProse || isCode) {
     // VB: comments and string literals only. Scanning the code itself reads VB keywords as
     // prose (`For Each token In summary` is not the phrase "in summary").
-    const hay = (isProse ? proseScan : isVb ? vbProseOnly(content) : stripEscapeHatchLines(content)).toLowerCase();
+    const hay = isProse ? proseScan : isVb ? vbProseOnly(content) : stripEscapeHatchLines(content);
     for (const phrase of BANNED_PHRASES) {
-      if (!phrase) continue; // indexOf("") returns 0, which would loop forever below
-      const firstIdx = hay.indexOf(phrase);
-      if (firstIdx === -1) continue;
-      let count = 0;
-      let searchFrom = 0;
-      let idx;
-      while ((idx = hay.indexOf(phrase, searchFrom)) !== -1) {
-        count++;
-        searchFrom = idx + phrase.length;
-      }
-      const lineNum = hay.substring(0, firstIdx).split("\n").length;
+      const found = phraseMatches(hay, phrase);
+      if (!found) continue;
+      const { count, line: lineNum } = found;
       violations.push({
         type: "banned-phrase",
         phrase,
@@ -816,7 +863,9 @@ export function scanContent(content, filePath, opts = {}) {
         });
       }
     }
-    const emdashes = (proseScan.match(/—/g) || []).length;
+    // A dash alone in a table cell is the table's "none", not a sentence's em dash.
+    const dashText = proseScan.split("\n").map((l) => (/^\s*\|/.test(l) ? l.replace(/\|\s*[\u2014\u2013]\s*(?=\||$)/g, "| ") : l)).join("\n");
+    const emdashes = (dashText.match(/—/g) || []).length;
     const words = (proseScan.match(/\S+/g) || []).length || 1;
     const density = (emdashes / words) * 1000;
     if (emdashes >= EMDASH_MIN_COUNT && density >= EMDASH_MIN_DENSITY) {
@@ -824,7 +873,7 @@ export function scanContent(content, filePath, opts = {}) {
         type: "text-construct",
         name: "em-dash-density",
         count: emdashes,
-        line: firstMatchLine(proseScan, /—/g),
+        line: firstMatchLine(dashText, /—/g),
         severity: density >= EMDASH_MIN_DENSITY * 2 ? "medium" : "low",
         confidence: EMDASH_CONFIDENCE,
         fix: EMDASH_FIX,
@@ -838,7 +887,10 @@ export function scanContent(content, filePath, opts = {}) {
   // the tell (this plugin's own writing-patterns.md reference failed its own scanner over
   // exactly that), whereas a `.emoji` CSS class or an EMOJI_MAP constant is a source file
   // naming a symbol while shipping the glyphs. Code and markup opt out per line instead.
-  const emojiSilenced = isProse && !fileGuardOk(EMOJI_FILE_GUARD, content);
+  // Data and config files (.json, .yml, .toml, .csv, .lock, .svg, .xml) are not a surface a
+  // reader meets the glyph on, and every other family already stays off them.
+  const emojiSurface = isProse || isCode || isStyle || isNative;
+  const emojiSilenced = !emojiSurface || (isProse && !fileGuardOk(EMOJI_FILE_GUARD, content));
   const emojiHaystack = emojiSilenced ? null : stripEscapeHatchLines(content);
   const emojiMatches = emojiHaystack === null ? null : emojiHaystack.match(EMOJI_REGEX);
   if (emojiMatches) {
@@ -854,21 +906,22 @@ export function scanContent(content, filePath, opts = {}) {
     });
   }
 
-  // ── Design + code patterns (per-line, with suppress + escape hatch) ──
-  // VB lines are rewritten so a `'`/REM comment reads as `//`: the shared comment-slop
-  // rules (narrating, placeholder, deferral, apologetic, banner) key on C-family markers.
-  const lines = isVb ? vbCommentNormalizedLines(content) : content.split("\n");
-  const vbRawLines = isVb ? vbCommentNormalizedLines(content, false) : null;
+  // ── Design + code patterns (per-line or per-file, with suppress + escape hatch) ──
+  const sources = ruleSources(content, ext, opts.designSystem || null, isVb);
+  const codeSource = (pat) => (isVb && !pat.blankComments ? sources.vbRaw(pat) : pat.blankComments ? sources.blanked : sources.raw);
   if (isStyle) {
     for (const pat of DESIGN_PATTERNS) {
-      if (!fileGuardOk(pat, content)) continue;
-      const { count, line, occ } = countLinePattern(lines, pat);
+      if (isTestFile && pat.skipInTests) continue;
+      if (!fileGuardOk(pat, sources.blanked.text)) continue;
+      const { count, line, lines: hitLines, evidence, occ } = countLinePattern(sources.blanked, pat);
       if (meetsThreshold(pat, count)) {
         violations.push({
           type: "design-tell",
           name: pat.name,
           count,
           line,
+          lines: hitLines,
+          evidence,
           _occ: occ,
           severity: resolveSeverity(pat.severity, count),
           confidence: pat.confidence,
@@ -922,14 +975,16 @@ export function scanContent(content, filePath, opts = {}) {
   }
   if (isNative) {
     for (const pat of NATIVE_PATTERNS) {
-      if (!fileGuardOk(pat, content)) continue;
-      const { count, line, occ } = countLinePattern(lines, pat);
+      if (!fileGuardOk(pat, sources.blanked.text)) continue;
+      const { count, line, lines: hitLines, evidence, occ } = countLinePattern(sources.blanked, pat);
       if (meetsThreshold(pat, count)) {
         violations.push({
           type: "native-tell",
           name: pat.name,
           count,
           line,
+          lines: hitLines,
+          evidence,
           _occ: occ,
           severity: resolveSeverity(pat.severity, count),
           confidence: pat.confidence,
@@ -944,9 +999,8 @@ export function scanContent(content, filePath, opts = {}) {
     for (const pat of CODE_PATTERNS) {
       if (isTestFile && pat.skipInTests) continue;
       if (isVb && VB_REPLACED_RULES.has(pat.name)) continue;
-      if (!fileGuardOk(pat, content)) continue;
-      const patLines = isVb && !COMMENT_MARKER_RULES.has(pat.name) ? vbRawLines : lines;
-      const { count, line, occ } = countLinePattern(patLines, pat);
+      if (!fileGuardOk(pat, codeSource(pat).text)) continue;
+      const { count, line, lines: hitLines, occ } = countLinePattern(codeSource(pat), pat);
       // Same gate as the design table: every code rule shipped before 2.1.0 declares no
       // mode and behaves exactly as the old `count > 0`, while `banner-comment` -- a Taste
       // note whose whole claim is "this file is divided by ASCII art" -- needs two.
@@ -956,6 +1010,7 @@ export function scanContent(content, filePath, opts = {}) {
           name: pat.name,
           count,
           line,
+          lines: hitLines,
           _occ: occ,
           severity: resolveSeverity(pat.severity, count),
           confidence: pat.confidence,
@@ -966,22 +1021,21 @@ export function scanContent(content, filePath, opts = {}) {
     }
   }
 
-  // VB: narration rules key on English verbs, and in this codebase they mostly hit Korean
-  // why-comments naming a method (`Initialize에서 ...`) and commented-out code. Comment
-  // style is not what the VB support is for, so they are Taste notes there (reported by a
-  // scan, left out of the hook). Placeholder/deferral/apologetic comments stay as they are.
-  // Applied after the suppressed findings are added, so both paths carry the same class.
+  if (Array.isArray(opts.warnings) && (isStyle || isNative || isCode)) {
+    for (const w of unknownWaivers(sources.raw.rawLines)) opts.warnings.push({ file: filePath, ...w });
+  }
+
   if (opts.collectSuppressed) {
     violations.push(...collectSuppressedViolations({
-      content, lines, vbRawLines, isProse, isCode, isVb, isStyle, isTestFile, proseScan, allowedWords, contentLower,
+      sources, isProse, isCode, isVb, isStyle, isTestFile, proseScan, allowedWords, contentLower, content,
     }));
   }
 
   const relabelled = isVb
     ? violations.map((v) => (VB_TASTE_RULES.has(v.name) ? { ...v, confidence: CONFIDENCE_TASTE } : v))
     : violations;
-  // Every occurrence's line is collected internally (`_occ`) but only exposed, as `lines`,
-  // under opts.allOccurrences, so the default output stays byte-identical.
+  // Every occurrence's line is collected internally (`_occ`); under opts.allOccurrences it
+  // replaces `lines` (otherwise the distinct hit lines, capped at 20, or absent).
   return relabelled.map(({ _occ, ...v }) => (opts.allOccurrences && _occ ? { ...v, lines: _occ } : v));
 }
 

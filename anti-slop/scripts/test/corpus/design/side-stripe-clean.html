@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Field notes</title>
+<style>
+  :root { --radius: 12px; }
+  body { margin: 0; background: #ffffff; color: #1f2937; font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+  main { max-width: 40rem; margin: 0 auto; padding: 2rem 1rem; display: grid; gap: 1rem; }
+  .timeline li { border-left: 2px solid #d4d4d8; padding-left: 1rem; }
+  .tabs [aria-selected="true"] { border-left: 3px solid oklch(0.52 0.1 180); }
+  [role="alert"] { border-left: 4px solid oklch(0.5 0.17 25); padding-left: 1rem; }
+  .card { border: 1px solid #e5e7eb; border-radius: var(--radius); padding: 1rem; }
+  .divider { border-left: 1px solid oklch(0.52 0.1 180); padding-left: 1rem; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-spin { animation-duration: 2.4s; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Field notes</h1>
+  <ol class="timeline">
+    <li>Beds watered</li>
+    <li>Compost turned</li>
+  </ol>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true">Week</button>
+    <button role="tab" aria-selected="false">Month</button>
+  </div>
+  <p role="alert">Frost is forecast for Saturday night.</p>
+  <div class="card">Seed trays go back on the north shelf.</div>
+  <p class="divider">Next delivery Thursday.</p>
+  <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" role="status"><span class="sr-only">Loading</span></div>
+  <button class="border-l-4 border-teal-600" type="button">Mark done</button>
+  <table>
+    <tr><td class="border-l-4 border-amber-600">Overdue</td><td>Seed order</td></tr>
+  </table>
+</main>
+</body>
+</html>

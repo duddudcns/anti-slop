@@ -33,7 +33,7 @@
     --line-2:    #383f4b;   /* stronger borders */
     --ink:       #e6e8ec;   /* primary text */
     --ink-dim:   #9aa1ad;   /* secondary text */
-    --ink-faint: #6b727f;   /* tertiary / captions */
+    --ink-faint: #858d9a;   /* tertiary / captions */
 
     --accent:      #e8a13a; /* signal amber — the single accent */
     --accent-deep: #c9842a; /* pressed / border of accent */
@@ -77,7 +77,7 @@
     content: "";
     position: fixed;
     inset: 0;
-    background-image:
+    background-image: /* anti-slop-allow: background-pattern -- engineering grid is the stated brand surface */
       linear-gradient(var(--line) 1px, transparent 1px),
       linear-gradient(90deg, var(--line) 1px, transparent 1px);
     background-size: 48px 48px;
@@ -265,7 +265,7 @@
   /* ---------- value section ---------- */
   .values { padding: var(--s8) 0; border-top: 1px solid var(--line); }
   .values .section-label {
-    font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em;
+    font-family: var(--mono); font-size: 12px; font-weight: 400; letter-spacing: 0.08em;
     text-transform: uppercase; color: var(--ink-faint); margin: 0 0 var(--s6);
   }
   .value-grid {
@@ -394,7 +394,7 @@
     </section>
 
     <section class="wrap values" id="values">
-      <p class="section-label">Why freelancers run on it</p>
+      <h2 class="section-label">Why freelancers run on it</h2>
       <div class="value-grid">
         <div class="value-item">
           <div class="num">01</div>
