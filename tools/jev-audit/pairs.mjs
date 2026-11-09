@@ -43,7 +43,7 @@ export const PAIRS = [
     id: "warm-colors-vs-tasteful-default",
     situation: "the reader is choosing a palette for a new site with no brand and picks a cream background with a terracotta accent",
     a: { file: "references/design-patterns.md", locate: "**Instead:** Anchor the palette on the brand", locateBefore: "**Instead:** Choose colors based on the project's brand and purpose. Use warm colors" },
-    b: { file: "references/design-patterns.md", locate: "**The signal is the combination.** Any two of {cream background, serif display, warm accent}" },
+    b: { file: "references/design-patterns.md", locate: "**The signal is the combination.** Two distinct legs together are the strong tell", locateBefore: "**The signal is the combination.** Any two of {cream background, serif display, warm accent}" },
   },
   {
     id: "serif-suggested-vs-serif-tell",
