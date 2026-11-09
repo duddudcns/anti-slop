@@ -6,7 +6,7 @@ The list is not the evidence. `empirical-rankings.md` carries the hand-audited c
 
 ## Three tiers, and what each one asks of you
 
-Not every word in this file is a tell, and treating them all as one was the mistake this file used to make. The scanner's two lists in `scripts/lib/rules.mjs` (`BANNED_WORDS` and `LOW_CONFIDENCE_WORDS`) are the source of truth for the first two tiers, and `self-check.md` § Vocabulary mirrors the same split.
+Not every word in this file is a tell, and treating them all as one over-corrects ordinary prose. The scanner's two lists in `scripts/lib/rules.mjs` (`BANNED_WORDS` and `LOW_CONFIDENCE_WORDS`) are the source of truth for the first two tiers, and `self-check.md` § Vocabulary mirrors the same split.
 
 | Tier | What it means | What to do |
 |---|---|---|

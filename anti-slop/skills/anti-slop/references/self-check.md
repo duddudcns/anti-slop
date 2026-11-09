@@ -262,4 +262,4 @@ Every item here is countable on purpose. Rhythm is the second most-cited tell an
 
 The minimum check is the canonical list in `SKILL.md` § Quick Self-Check. Run that when pressed for time, and the relevant checklist above when reviewing properly.
 
-One copy is deliberate. This file previously carried a second quick list, and the two drifted: one counted em dashes at a threshold the scanner does not use, and one named three words that are not on the banned list at all. A minimum check that disagrees with itself is worse than no minimum check.
+One copy is deliberate: two lists that claim to be the same minimum drift apart, and a minimum check that disagrees with itself is worse than no minimum check.
