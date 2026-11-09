@@ -68,7 +68,7 @@ These regex shares are the full-corpus keyword rate (all 7,984 posts, where over
 | `robust` | <1 | ~0 | Over-counts |
 | `embark`, `ever-evolving` | <1 | ~0 | Over-counts here, but both ship as single-hit tells (`BANNED_WORDS` and `BANNED_PHRASES`); demoting either is a rule change and goes through `npm run measure` first |
 
-The broader low-confidence set (match the lexicon but humans use them normally): `utilize, leverage, harness, streamline, foster, facilitate, cultivate, empower, navigate, comprehensive, robust, nuanced, meticulous, seamless, holistic, myriad, plethora, paramount, intricate, profound, vibrant, captivating, realm`. These are `banned-words.md` § Cluster tells: the scanner flags them at low severity only when two or more appear in one document, and a lone hit is clean.
+The broader low-confidence set (match the lexicon but humans use them normally): `utilize, leverage, harness, streamline, foster, facilitate, cultivate, empower, navigate, comprehensive, robust, nuanced, meticulous, seamless, holistic, myriad, plethora, paramount, intricate, profound, vibrant, captivating, realm`. These are `banned-words.md` § Cluster tells: the scanner flags them at low severity only when the same word appears twice or more in one document, and a lone hit is clean.
 
 ## Code: verified ranking (precision-adjusted)
 

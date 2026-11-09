@@ -65,7 +65,7 @@ The last six are the fiction register's defaults; § Creative Writing below says
 
 ## Cluster tells
 
-Ordinary words with an inflated sense. The scanner flags them at low severity, Pattern smell, only when two or more appear in one document; a lone hit is clean. When they gather, thin them out rather than replacing every one.
+Ordinary words with an inflated sense. The scanner flags them at low severity, Pattern smell, only when the same word appears twice or more in one document; a lone hit is clean, and no rule counts across different words. When they gather, thin them out rather than replacing every one.
 
 | Word | Plain alternative |
 |------|-------------------|
