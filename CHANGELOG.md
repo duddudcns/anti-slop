@@ -2,6 +2,99 @@
 
 All notable changes to the anti-slop plugin. Versions match `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `anti-slop/.claude-plugin/plugin.json`, the SKILL.md frontmatter, and `anti-slop/scripts/package.json` — all five are bumped together. (It was five, then four when 2.0.0 removed the MCP Server constructor, then five again when 2.2.1 brought the scanner's package.json under the same gate.)
 
+## 2.5.2 - 2026-11-09
+
+The plugin's instructions (the skill, the `slop-detector` agent, the `/slop-check` command
+and the reference library) were reviewed against Anthropic's published migration guidance
+for the current Claude models, which read instructions closely and apply them as written.
+Two independent checks tried to refute each finding before it became an edit. No scanner
+rule, rule table, fixture or baseline changed, and `npm run measure` prints the same report
+before and after.
+
+**Harness mismatches**
+
+- `/slop-check` expanded a directory or glob target with `Glob`, a tool the main session
+  may not have. It uses `Glob` where the session has it, otherwise
+  `git ls-files --cached --others --exclude-standard` (tracked and untracked files,
+  gitignored ones left out), or `find` outside a git repository.
+- The agent has read-only tools and sees none of the conversation, yet neither the command
+  nor the skill said to put the target in its prompt. Both do now: the file paths; for
+  `diff` and `pr`, the changed-file list plus the diff when it is short, or else the
+  changed line ranges; the message verbatim for `last response`.
+- `allowed-tools` pre-approved every `gh pr` subcommand, merge and close among them, and
+  any command behind `xargs`. It grants `gh pr diff`, `xargs node`, `xargs -0 node` and
+  `git ls-files`, which is what the command runs; `git branch` and `node` are unchanged.
+
+**Defects**
+
+- The documented diff pipeline split a path with a space into several arguments, and the
+  scanner stopped on `Cannot read file`. The pipeline is NUL-separated
+  (`git diff --name-only -z ... | xargs -0`) in the command, the skill, the CLI usage text
+  and the README, and the command says what to do with `gh pr diff --name-only`, which has
+  no NUL form and lists deleted files. Exit 2 is documented as a usage error or an
+  unreadable path everywhere it is stated.
+- Only a failed Agent tool had a fallback. A refused, empty or scoreless agent result now
+  counts as a failure too: the agent is dispatched once more (after a safeguard refusal by
+  the API, the session's own rules decide whether that retry runs on a different model),
+  and if that fails the result is a direct review labelled as having no agent score, with
+  what the agent returned. The command and the skill use the same wording.
+- The agent quoted the exact text of every finding, a found credential included, into a
+  report that gets pasted into chats and pull requests. A credential finding gives the line
+  and the key name with the value masked, as the scanner already did.
+- The REVISE band read "60-83%", so 25/30 (83.3%) fell in no band. It reads "60% to below
+  84%".
+- The verdict template had no slot for PASS, REVISE or REWRITE, which the bands require.
+  It has one, and no sentence count.
+- `/slop-check` step 5 spoke of one scan score, while the scanner prints one per file with
+  findings and a `Total:` line. The step says to report those as printed, and to carry
+  every finding across with its location, rule, severity, confidence class and fix, a
+  repeated finding once with its count and locations.
+- The SKILL.md frontmatter description held unquoted `: ` sequences that strict YAML
+  parsers reject. It is quoted.
+- The cream-serif pair locator in `tools/jev-audit/pairs.mjs` pointed at wording
+  `design-patterns.md` no longer has, so `node audit.mjs` stopped on it. It points at the
+  current text and keeps the old text as `locateBefore`.
+- The corpus note for `site-settings.py` named a key the fixture does not hold. It names
+  `BILLING_SECRET_KEY`.
+
+**Contradictions**
+
+- The agent flagged two different cluster words in one document, while the skill,
+  `banned-words.md` and the scanner flag the same cluster word twice. `banned-words.md`,
+  `empirical-rankings.md` and `self-check.md` (its prose and its checkbox) said "two or
+  more" without saying two of what. All of them state the scanner's rule, and several
+  different cluster words crowding one paragraph stay the reviewer's judgment.
+- The agent flagged cream with a rusty-orange accent and no serif, a pair
+  `design-patterns.md` rules out, and said the scanner matches single legs. It lists the
+  four pairs `cream-serif-default` matches and says the rule reads only the hexes, faces
+  and classes it lists.
+- `/slop-check` told the session not to close on an offer, then allowed offering the
+  dashboard whenever it was "contextually useful". The dashboard starts only when the user
+  asks.
+- The agent was told to read every reference file, while the list under that line set
+  per-target conditions. Files with no condition are read on every review, and
+  `frontend-patterns.md` and `density-and-economy.md` carry their own conditions.
+
+**Fit with how current models read instructions**
+
+- The skill sent output with "the structural tells above" to the agent, and any output can
+  show them. The agent is for a finished target; output still being written gets the
+  inline self-check, as the agent's description already said.
+- The rhythm rule's counts read as a quota to write to, which produces the over-corrected
+  register the skill warns about. The writing rule states the goal, and the counts stay in
+  `self-check.md` as the test of a draft.
+- The formatting rule was three prohibitions written for models that over-format. It says
+  when headers, lists and bold help, and keeps the reverse cases as the tells.
+- A sentence in the agent body addressed the dispatcher, who never reads it. It is gone.
+- Reference files told their own release history ("as of 2.4.0", "previously", "until
+  2.1.0", "used to make"). Each states the rule and its reason instead.
+
+**The security review needed no change.** The `slop-detector` agent at 2.5.1 was run on
+the newest Claude model over the 22 code fixtures of the scanner corpus, which hold planted
+injection, deserialization and credential defects. It was not refused, it read every file,
+it honoured the four `anti-slop-allow` lines, and it returned the labelled Review score with
+a location, rule, severity, confidence class and fix for each finding.
+
 ## 2.5.1 - 2026-10-26
 
 - `viewport-zoom-lock` matches inside the viewport `<meta>` tag, in either attribute order. The 2.4.0 pattern ran from the word viewport anywhere on a line to a later `user-scalable=no` or `maximum-scale=1`, so a documentation line about grepping for those tokens fired it, and a tag with `content` before `name` did not. A test pins both.
