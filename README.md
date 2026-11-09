@@ -94,7 +94,7 @@ node scripts/slop-scanner.mjs scan [options] <file...>
 
 # Typical CI usage: scan only what changed (--diff-filter=d skips deleted files,
 # which would otherwise abort the scan as unreadable)
-git diff --name-only --diff-filter=d origin/main... | xargs -r node scripts/slop-scanner.mjs scan --fail-on high
+git diff --name-only -z --diff-filter=d origin/main... | xargs -0 -r node scripts/slop-scanner.mjs scan --fail-on high
 ```
 
 Options:

@@ -1,7 +1,7 @@
 ---
 name: anti-slop
 version: 2.5.1
-description: Catches AI-default tells and agentic shortcomings in user-facing output: banned vocabulary and structural cliches in prose, AI-default design and UI code, accessibility failures, and security holes or regressions in the code under review. Use when writing or revising user-facing prose (UI copy and microcopy, notifications, marketing and store listings, release notes, public docs), when designing or building UI, and when asked to review output, a file, a diff, or a PR for AI patterns ("/slop-check", "check this for AI patterns", "does this read as AI-written?"). Context-aware: yields to domain conventions and project requirements.
+description: 'Catches AI-default tells and agentic shortcomings in user-facing output: banned vocabulary and structural cliches in prose, AI-default design and UI code, accessibility failures, and security holes or regressions in the code under review. Use when writing or revising user-facing prose (UI copy and microcopy, notifications, marketing and store listings, release notes, public docs), when designing or building UI, and when asked to review output, a file, a diff, or a PR for AI patterns ("/slop-check", "check this for AI patterns", "does this read as AI-written?"). Context-aware: yields to domain conventions and project requirements.'
 ---
 
 ## Core Principle: Do No Harm
@@ -25,15 +25,15 @@ The plugin ships three layers. Route by what the target is and what evidence is 
 |---|---|---|
 | Inline self-check | In-scope output (user-facing prose, UI work, a review target) you wrote or edited in this turn, before you hand it back | § Quick Self-Check below; `references/self-check.md` for the full checklist by output type |
 | Deterministic scan | The target is one or more files on disk | `node "${CLAUDE_PLUGIN_ROOT}/scripts/slop-scanner.mjs" scan <file...>`; a prose file the project has not listed under `userFacingProse` prints as skipped (§ Prose scope) |
-| `slop-detector` agent | The target is a diff, a PR, a long response, or the structural tells above | Dispatch the `slop-detector` agent, or run `/slop-check <target>`, which runs both layers and reports both scores. Name the reference library in the dispatch prompt: `${CLAUDE_PLUGIN_ROOT}/skills/anti-slop/references` |
+| `slop-detector` agent | A finished target (a file set, a diff, a PR, a long response) where the structural tells above need a semantic read from fresh context; output still being written gets the inline self-check instead | Dispatch the `slop-detector` agent for the target, or run `/slop-check <target>`, which runs both layers and reports both scores. Put the target in the dispatch prompt, because the agent sees none of this conversation and has no shell, and name the reference library: `${CLAUDE_PLUGIN_ROOT}/skills/anti-slop/references` |
 
-The scanner needs no install and has zero runtime dependencies. It exits 0 when clean, 1 on findings, 2 on a usage error, and takes `--format json`, `--fail-on <level>`, and `--quiet`. Every finding carries its rule id, line, confidence class, and a one-line fix: apply the fix, and never delete the construct to clear the match. It reads files only, never a directory or a glob, so pipe a file list in:
+The scanner needs no install and has zero runtime dependencies. It exits 0 when clean, 1 on findings, 2 on a usage error or an unreadable path, and takes `--format json`, `--fail-on <level>`, and `--quiet`. Every finding carries its rule id, line, confidence class, and a one-line fix: apply the fix, and never delete the construct to clear the match. It reads files only, never a directory or a glob, so pipe a file list in:
 
 ```bash
-git diff --name-only --diff-filter=d | xargs node "${CLAUDE_PLUGIN_ROOT}/scripts/slop-scanner.mjs" scan
+git diff --name-only -z --diff-filter=d | xargs -0 node "${CLAUDE_PLUGIN_ROOT}/scripts/slop-scanner.mjs" scan
 ```
 
-Run both layers whenever both apply, and say which one produced a given score. For code, build and type-check before either: hallucinated APIs are the second-ranked code tell by verified share and only a compiler catches them.
+Run the scan and the agent whenever both apply to a finished target, and say which one produced a given score. Output you are still writing gets the inline self-check, plus the scan once it is a file, and no agent of its own unless the user asks for a review. The agent has failed when the dispatch errors, or when it comes back with a refusal, an empty result, or a report with no `Review score`. Dispatch it once more. After a safeguard refusal by the API (not the agent declining in its own words), the session's own rules decide whether that second dispatch runs on a different model. If the second dispatch fails too, review directly against this skill, label the result as a direct review with no agent score, and say what the agent returned. For code, build and type-check before running the scan or the agent: hallucinated APIs are the second-ranked code tell by verified share and only a compiler catches them.
 
 ## Prose scope
 
