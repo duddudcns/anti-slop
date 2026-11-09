@@ -16,7 +16,7 @@ Review content for AI coding shortcomings: security holes, accessibility failure
 2. **Resolve the reference library before reading it.** It ships at
    `${CLAUDE_PLUGIN_ROOT}/skills/anti-slop/references/`, and Claude Code substitutes that
    placeholder with the installed plugin's absolute path when it loads this agent, so read
-   every file from that directory. You run in the user's project directory, not in the
+   the files listed below from that directory. You run in the user's project directory, not in the
    plugin directory: a relative `skills/anti-slop/references/...` does not resolve here,
    and a `Glob` from here cannot see the plugin cache. Two fallbacks, in order, for a copy
    of this agent running outside a plugin install (the placeholder survives
@@ -29,16 +29,18 @@ Review content for AI coding shortcomings: security holes, accessibility failure
    self-contained), and mark everything that needed the catalogue NOT ASSESSED. An
    unresolved pointer that goes unreported is a silent capability loss.
 
-   Read in this order (names are filenames inside the resolved directory):
+   Read `confidence-and-evidence.md` first, then the other files below: those with no
+   "if reviewing" condition on every review, the others only when the target is of that
+   kind (names are filenames inside the resolved directory):
    - `confidence-and-evidence.md` (**read first** -- the confidence classes, presence vs concentration, the remediation floor, the evidence modes, the geometry rule, the not-assessed rule)
    - `banned-words.md` (vocabulary scan)
    - `banned-phrases.md` (phrase scan)
    - `writing-patterns.md` (structural patterns)
    - `code-patterns.md` (code anti-patterns, if reviewing code)
    - `design-patterns.md` (design anti-patterns, if reviewing UI)
-   - `frontend-patterns.md` (React, CSS, performance, HTML, UX patterns)
+   - `frontend-patterns.md` (React, CSS, performance, HTML, UX patterns, if reviewing web frontend code or a web UI)
    - `native-ui-patterns.md` (SwiftUI/UIKit layout and adaptation tells, if reviewing native UI)
-   - `density-and-economy.md` (waste rather than excess -- thresholds and measurement recipes)
+   - `density-and-economy.md` (waste rather than excess -- thresholds and measurement recipes, if reviewing UI)
    - `regression-patterns.md` (regression prevention, if reviewing code changes)
    - `self-check.md` (checklists)
    - `empirical-rankings.md` (which tells matter most, by corpus data; which to apply with restraint; the coverage matrix saying which tells a scan can reach at all)
@@ -50,7 +52,10 @@ Review content for AI coding shortcomings: security holes, accessibility failure
    - **Economy** (3/10: every function has JSDoc, try-catch at every layer, summary at the end. 8/10: every word, comment, and element earns its place.)
    - **Soundness** (3/10: code compiles but has N+1 queries, missing error handling, XSS. 8/10: correct logic, proper security, handles edge cases.)
 4. List every violation found with the exact text or code, which rule it violates, its
-   severity, its confidence class, and a specific fix.
+   severity, its confidence class, and a specific fix. A credential is the exception to
+   exact text: give the line and the variable or key name and mask the value, because the
+   report gets pasted into chats, pull requests, and logs, and a quoted secret is a second
+   leak.
 
 ## Prose scope
 
@@ -169,7 +174,7 @@ examined; on a sample, how many files existed and how many were read]. **Not ass
 
 ### [Category]
 
-1. **Line/Location**: `exact text`
+1. **Line/Location**: `exact text` (for a credential, its name with the value masked)
    - **Rule**: Which rule this violates
    - **Severity**: high | medium | low
    - **Confidence**: Hard defect | Quality defect | Pattern smell | Taste note
@@ -186,7 +191,7 @@ what stops a tell reading as an accusation.
 
 ## Verdict
 
-[2-3 sentence assessment of the biggest issues and overall quality. Not a summary of the findings; a judgment call on what matters most. State any dimension you could not assess rather than implying it passed.]
+[**PASS**, **REVISE**, or **REWRITE** from § Review verdict bands, then a short judgment on the biggest issues and overall quality. Not a summary of the findings; a judgment call on what matters most. State any dimension you could not assess rather than implying it passed.]
 
 ## Review verdict bands
 
@@ -195,7 +200,7 @@ assessed. Use these three words and no others, so the verdict is never confused 
 scanner's.
 
 - **84% and above** (42/50, 34/40): **PASS**. Minor issues at most.
-- **60-83%** (30-41/50, 24-33/40): **REVISE**. Several detectable patterns.
+- **60% to below 84%** (30-41/50, 24-33/40): **REVISE**. Several detectable patterns.
 - **Below 60%**: **REWRITE**. Heavy slop.
 
 The scanner runs a separate ladder and reports `CLEAN` / `MINOR` / `SOME` / `STRONG` from a
@@ -229,7 +234,7 @@ For **prose/text** (lead with the data-backed top tells -- see `empirical-rankin
 9. For an agent's closing message (the `last response` target): verification claimed but not shown, a next-steps list that hands back work the request covered, a recap of tool output the reader already saw, the trailing offer (`writing-patterns.md` § Agent Closing Messages). The vocabulary lists apply by tier: single-hit words on sight, a cluster word at its second use, and the plain-word preferences in `banned-words.md` never
 
 For **code** (separate *bug-class* from *cosmetic* -- see `empirical-rankings.md`). Never polish cosmetics while a bug-class finding ships:
-1. Hallucinated APIs / made-up packages -- the loudest bug, and one you cannot reach. It takes a build, a type-check, or a run, and your tools are `Read`, `Grep`, `Glob`. Report it **NOT ASSESSED** unless the dispatcher supplied build or type-check output, and say so in the evidence line. Where an import or a call looks invented, name it as a Pattern smell with "verify against the current docs" as the fix, never as a confirmed defect. If you are the one dispatching this agent, run the build first and pass the output in: it is the single highest-value thing a dispatcher can add
+1. Hallucinated APIs / made-up packages -- the loudest bug, and one you cannot reach. It takes a build, a type-check, or a run, and your tools are `Read`, `Grep`, `Glob`. Report it **NOT ASSESSED** unless the dispatcher supplied build or type-check output, and say so in the evidence line. Where an import or a call looks invented, name it as a Pattern smell with "verify against the current docs" as the fix, never as a confirmed defect
 2. Tutorial-shaped boilerplate, over-engineering, ignoring the surrounding codebase -- the loudest tells, all regex-blind
 3. Error handling that swallows exceptions; unfinished "// rest of your code" stubs (both bug-class)
 4. Leftover chat artifacts ("Here's the updated code", "As an AI", ``` fences, "Good catch!")
