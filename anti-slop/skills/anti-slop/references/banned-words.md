@@ -6,7 +6,7 @@ The list is not the evidence. `empirical-rankings.md` carries the hand-audited c
 
 ## Three tiers, and what each one asks of you
 
-Not every word in this file is a tell, and treating them all as one was the mistake this file used to make. The scanner's two lists in `scripts/lib/rules.mjs` (`BANNED_WORDS` and `LOW_CONFIDENCE_WORDS`) are the source of truth for the first two tiers, and `self-check.md` § Vocabulary mirrors the same split.
+Not every word in this file is a tell, and treating them all as one over-corrects ordinary prose. The scanner's two lists in `scripts/lib/rules.mjs` (`BANNED_WORDS` and `LOW_CONFIDENCE_WORDS`) are the source of truth for the first two tiers, and `self-check.md` § Vocabulary mirrors the same split.
 
 | Tier | What it means | What to do |
 |---|---|---|
@@ -65,7 +65,7 @@ The last six are the fiction register's defaults; § Creative Writing below says
 
 ## Cluster tells
 
-Ordinary words with an inflated sense. The scanner flags them at low severity, Pattern smell, only when two or more appear in one document; a lone hit is clean. When they gather, thin them out rather than replacing every one.
+Ordinary words with an inflated sense. The scanner flags them at low severity, Pattern smell, only when the same word appears twice or more in one document; a lone hit is clean, and no rule counts across different words. When they gather, thin them out rather than replacing every one.
 
 | Word | Plain alternative |
 |------|-------------------|

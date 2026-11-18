@@ -25,9 +25,8 @@ measurements below are from that page.
 > Waste with no measurement attached is a taste note. With a measurement it is MEDIUM or
 > HIGH.
 
-This is the whole discipline, and skipping it is why the pattern went un-actioned for eight
-releases in the toolkit it came from: it was listed as an anti-pattern with no number, so
-no reviewer could rank a well-rendered page as broken. The severity scale everywhere else
+This is the whole discipline. A pattern listed with no number goes un-actioned, because
+no reviewer can rank a well-rendered page as broken. The severity scale everywhere else
 is anchored on breakage -- CRITICAL is "blocks use", HIGH is overlapping controls -- and a
 defect that renders perfectly cannot climb that ladder on its own. A reviewer applying it
 honestly lands on "taste", which does not survive triage.
@@ -52,8 +51,8 @@ not apply.
 ### Viewport utilisation
 
 Measure at the widest viewport reviewed, and at 1920px. Then measure at the narrowest, per
-§ The check that generalises: this rubric had one direction for eight releases, and the
-opposite direction is a real failure that a too-little-content threshold cannot catch.
+§ The check that generalises: the opposite direction is a real failure that a
+too-little-content threshold cannot catch.
 
 | Condition | Severity |
 |---|---|
@@ -246,14 +245,13 @@ overlapping" and no "controls too far apart".
 **A one-directional rule catches one direction of failure.** When adding a threshold to any
 rubric, write the opposite one at the same time, or record why it does not apply.
 
-This file failed its own check until 2.1.0: § Viewport utilisation measured only the
-too-little-content direction, at the widest viewport, while the overflow direction lived in
-another file with no numbers. Both directions now sit in the same table. The remaining
-inverses, recorded rather than left implicit:
+§ Viewport utilisation applies the check to itself: the too-little-content direction at
+the widest viewport and the overflow direction at the narrowest sit in the same table. The
+remaining inverses, recorded rather than left implicit:
 
 | Threshold here | Its inverse | Status |
 |---|---|---|
-| Viewport under-use at the widest width | Overflow at 320-390px | Now in the same table |
+| Viewport under-use at the widest width | Overflow at 320-390px | In the same table |
 | Page more than 2x viewport height with nothing collapsed | A page that hides the primary task behind a disclosure | Covered by "a collapse must never hide an alert", generalised: never fold what the operator came for |
 | Paragraph over 30 words in a control surface | A control surface with no explanation where one is genuinely needed | **Deliberately not a threshold.** A missing explanation is a content finding, not a density one, and counting absent words produces noise |
 | Row action more than 800px from its row identity | Controls packed too tightly to hit | Covered by the tap-target minimum in `design-patterns.md` § Mobile-Unfriendly Designs (24x24 CSS px, WCAG 2.5.8) |

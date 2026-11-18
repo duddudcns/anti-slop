@@ -667,8 +667,7 @@ rows: colors, fonts, radii, spacing. Weight by repetition, and count before flag
 
 ### Which of these the scanner can actually see
 
-Presence-flaggable and scanner-implemented are different claims, and this section previously
-ran them together under a heading about thresholds. Most of the compositions in this file have
+Presence-flaggable and scanner-implemented are different claims. Most of the compositions in this file have
 **no rule**, so a clean scan of a `.tsx` file says nothing whatsoever about them. They are the
 agent's to find, and `empirical-rankings.md` § Coverage matrix states the same boundary
 across every family.

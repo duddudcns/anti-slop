@@ -3,7 +3,7 @@
 // (by default) checker for CI gates and pre-commit hooks; `history`, `stats` and
 // `dashboard` read back what `--record` wrote. Files only: no glob or directory
 // recursion, so callers compose with their own shell tools, e.g.
-// `git diff --name-only | xargs node .../slop-scanner.mjs scan`.
+// `git diff --name-only -z | xargs -0 node .../slop-scanner.mjs scan`.
 
 import { readFileSync } from "fs";
 import { extname, relative } from "path";
@@ -42,7 +42,7 @@ Scan options:
 
 Scans take files only -- no glob or directory recursion; pipe a file list in:
 
-  git diff --name-only --diff-filter=d | xargs node .../slop-scanner.mjs scan
+  git diff --name-only -z --diff-filter=d | xargs -0 node .../slop-scanner.mjs scan
 
 Output:
   The report goes to stdout: text, or one JSON object with --format json.

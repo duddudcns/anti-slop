@@ -70,7 +70,7 @@ to make the tell stop matching is to delete the behaviour, and that is always
 the wrong answer.
 
 1. **Every finding names its remediation.** A finding that only names the offence
-   is incomplete, and an incomplete finding gets closed by deletion. Since 2.4.0 the
+   is incomplete, and an incomplete finding gets closed by deletion. The
    scanner holds itself to this: every rule carries a `fix`, and every finding prints
    it beside the rule id, the line, and the confidence class.
 2. **A remediation may never reduce responsiveness, keyboard reachability,
@@ -141,9 +141,9 @@ expensive: tell families this catalogue documents in full, with worked examples,
 deterministic rule matches at all. A scan is silent on every one of them, and silence here
 reads exactly like a pass.
 
-As of 2.4.0, after 2.1.0 added rules for command injection, unsafe deserialization,
-`dangerouslySetInnerHTML`, and the comment-slop family, and 2.4.0 added the pinch-zoom lock,
-positive `tabindex`, and `as any` rules, these remain un-ruled:
+The scanner has rules for command injection, unsafe deserialization,
+`dangerouslySetInnerHTML`, the comment-slop family, the pinch-zoom lock, positive
+`tabindex`, and `as any`. These families have none:
 
 | Family | Taught in | Why there is no rule |
 |---|---|---|

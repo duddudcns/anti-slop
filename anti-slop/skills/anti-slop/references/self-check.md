@@ -8,10 +8,10 @@ Two framing rules. Judge most word and phrase tells by **concentration** — a l
 
 ### Vocabulary
 
-The banned-words list splits in three, and a self-check checks the first two. The first group is flagged on a single hit. The second is the high-frequency set that people use normally, flagged only at two or more and at low severity. The split is `BANNED_WORDS` minus `LOW_CONFIDENCE_WORDS` in `scripts/lib/rules.mjs`; `empirical-rankings.md` § Writing: do NOT flag on a lone hit carries the corpus numbers behind it. The third group, the plain-word preferences in `banned-words.md` (`ensure`, `crucial`, `enhance` and the rest), is on neither list and is not a check: those words carry legal and technical weight, and treating them as tells produces exactly the over-correction this file warns about.
+The banned-words list splits in three, and a self-check checks the first two. The first group is flagged on a single hit. The second is the high-frequency set that people use normally, flagged only when the same word appears twice or more, at low severity. The split is `BANNED_WORDS` minus `LOW_CONFIDENCE_WORDS` in `scripts/lib/rules.mjs`; `empirical-rankings.md` § Writing: do NOT flag on a lone hit carries the corpus numbers behind it. The third group, the plain-word preferences in `banned-words.md` (`ensure`, `crucial`, `enhance` and the rest), is on neither list and is not a check: those words carry legal and technical weight, and treating them as tells produces exactly the over-correction this file warns about.
 
 - [ ] No single-hit words? (`delve`, `elevate`, `embark`, `unveil`, `showcase`, `spearhead`, `orchestrate`, `synergize`, `galvanize`, `transcend`, `pivotal`, `cutting-edge`, `groundbreaking`, `transformative`, `unprecedented`, `unparalleled`, `multifaceted`, `bustling`, `enchanting`, `landscape`, `tapestry`, `synergy`, `testament`, `interplay`, `paradigm`, `intersection`, `gossamer`, `iridescent`, `luminous`, `ephemeral`, `ethereal`, `enigmatic`)
-- [ ] Fewer than two from the low-confidence set? (`utilize`, `leverage`, `harness`, `seamless`, `foster`, `facilitate`, `streamline`, `comprehensive`, `robust`, `navigate`, `nuanced`, `meticulous`, `realm`, `holistic`, `myriad`, `plethora`, `paramount`, `intricate`, `vibrant`, `captivating`, `profound`, `empower`, `cultivate`)
+- [ ] No low-confidence word used twice? (`utilize`, `leverage`, `harness`, `seamless`, `foster`, `facilitate`, `streamline`, `comprehensive`, `robust`, `navigate`, `nuanced`, `meticulous`, `realm`, `holistic`, `myriad`, `plethora`, `paramount`, `intricate`, `vibrant`, `captivating`, `profound`, `empower`, `cultivate`)
 - [ ] No promotional adjectives? (`groundbreaking`, `cutting-edge`, `transformative`, `unprecedented`; `vibrant` is a cluster tell, checked one line above)
 - [ ] No unnecessary adverbs? (`really`, `just`, `literally`, `fundamentally`, `inherently`, `crucially`)
 - [ ] No fancy verb substitutes for "is" or "has"? (`serves as`, `stands as`, `features`, `boasts`)
@@ -262,4 +262,4 @@ Every item here is countable on purpose. Rhythm is the second most-cited tell an
 
 The minimum check is the canonical list in `SKILL.md` § Quick Self-Check. Run that when pressed for time, and the relevant checklist above when reviewing properly.
 
-One copy is deliberate. This file previously carried a second quick list, and the two drifted: one counted em dashes at a threshold the scanner does not use, and one named three words that are not on the banned list at all. A minimum check that disagrees with itself is worse than no minimum check.
+One copy is deliberate: two lists that claim to be the same minimum drift apart, and a minimum check that disagrees with itself is worse than no minimum check.

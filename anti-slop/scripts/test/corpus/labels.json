@@ -256,7 +256,7 @@
           "confidence": "Pattern smell"
         }
       ],
-      "note": "Authored in 2.2.2. Django SECRET_KEY, OPENAI_API_KEY and STRIPE_SECRET_KEY: the snake_case and *_KEY shapes that scanned clean through 2.2.1 because the key needed a word boundary and an underscore is a word character."
+      "note": "Authored in 2.2.2. Django SECRET_KEY, OPENAI_API_KEY and BILLING_SECRET_KEY: the snake_case and *_KEY shapes that scanned clean through 2.2.1 because the key needed a word boundary and an underscore is a word character."
     },
     {
       "file": "code/config-labels.py",
